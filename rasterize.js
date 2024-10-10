@@ -72,6 +72,47 @@ function setupWebGL() {
  
 } // end setupWebGL
 
+function doLighting(worldCoords, N, pointColors, eye) {
+    var color = new Color();
+    var V = Vector.subtract(eye, worldCoords);
+    var worldLoc = worldCoords;
+
+    var lVect = new Vector(lights[0].x, lights[0].y, lights[0].z);
+
+    //Convert them into pixels at the correct points.
+    lVect.y = 1 - lVect.y;
+    // get light vector
+    lVect = Vector.subtract(lVect,worldLoc);
+
+    //If the normal is facing away from the eye, flip it for correct lighting.
+    var NdotE = Vector.dot(Vector.normalize(N), Vector.normalize(eye));
+    if (NdotE < 0) {
+        N = Vector.scale(-1, N);
+    }
+
+    var NdotL = Vector.dot(Vector.normalize(N), Vector.normalize(lVect));
+    var NdotH = Vector.dot(Vector.normalize(N), Vector.normalize(Vector.add(Vector.normalize(lVect), Vector.normalize(V))))
+    // console.log(NdotL);
+    // calc diffuse color
+    color.r = pointColors.ambient[0] * 255 * lights[0].ambient[0]
+    color.g = pointColors.ambient[1] * 255 * lights[0].ambient[1]
+    color.b = pointColors.ambient[2] * 255 * lights[0].ambient[2]
+
+    color.r += pointColors.diffuse[0] * 255 * lights[0].diffuse[0] * max(NdotL, 0);
+    color.g += pointColors.diffuse[1] * 255 * lights[0].diffuse[1] * max(NdotL, 0);
+    color.b += pointColors.diffuse[2] * 255 * lights[0].diffuse[2] * max(NdotL, 0);
+
+    color.r += pointColors.specular[0] * 255 * lights[0].specular[0] * max(NdotH, 0)**pointColors.n;
+    color.g += pointColors.specular[1] * 255 * lights[0].specular[1] * max(NdotH, 0)**pointColors.n;
+    color.b += pointColors.specular[2] * 255 * lights[0].specular[2] * max(NdotH, 0)**pointColors.n;
+
+    color.r = min(color.r, 255);
+    color.g = min(color.g, 255);
+    color.b = min(color.b, 255);
+
+    return color;
+}
+
 // read triangles in, load them into webgl buffers
 function loadTriangles() {
     if (inputTriangles != String.null) { 
@@ -96,6 +137,7 @@ function loadTriangles() {
             for (whichSetVert=0; whichSetVert<inputTriangles[whichSet].vertices.length; whichSetVert++){
                 coordArray = coordArray.concat(inputTriangles[whichSet].vertices[whichSetVert]);
                 //Add the colors for each vertex (Will be the same for all of the same type).
+
                 colorsArray = colorsArray.concat(inputTriangles[whichSet].material.diffuse);
                 colorsArray = colorsArray.concat(1.0);
                 currentOffset++;
