@@ -6,9 +6,11 @@ const WIN_LEFT = 0; const WIN_RIGHT = 1;  // default left and right x coords in 
 const WIN_BOTTOM = 0; const WIN_TOP = 1;  // default top and bottom y coords in world space
 const INPUT_TRIANGLES_URL = "https://ncsucgclass.github.io/prog3/triangles2.json"; // triangles file loc
 const INPUT_ELLIPSOIDS_URL = "https://ncsucgclass.github.io/prog3/ellipsoids.json";
+const INPUT_LIGHTS_URL = "https://ncsucgclass.github.io/prog3/lights.json";
 //const INPUT_SPHERES_URL = "https://ncsucgclass.github.io/prog3/spheres.json"; // spheres file loc
 var Eye = new vec4.fromValues(0.5,0.5,-0.5,1.0); // default eye position in world space
 var inputTriangles = getJSONFile(INPUT_TRIANGLES_URL,"triangles");
+var lights = getJSONFile(INPUT_LIGHTS_URL, "lights");
 
 /* webgl globals */
 var gl = null; // the all powerful gl object. It's all here folks!
@@ -94,17 +96,17 @@ function doLighting(worldCoords, N, pointColors, eye) {
     var NdotH = Vector.dot(Vector.normalize(N), Vector.normalize(Vector.add(Vector.normalize(lVect), Vector.normalize(V))))
     // console.log(NdotL);
     // calc diffuse color
-    color.r = pointColors.ambient[0] * 255 * lights[0].ambient[0]
-    color.g = pointColors.ambient[1] * 255 * lights[0].ambient[1]
-    color.b = pointColors.ambient[2] * 255 * lights[0].ambient[2]
+    color.r = pointColors.ambient[0] * lights[0].ambient[0]
+    color.g = pointColors.ambient[1] * lights[0].ambient[1]
+    color.b = pointColors.ambient[2] * lights[0].ambient[2]
 
-    color.r += pointColors.diffuse[0] * 255 * lights[0].diffuse[0] * max(NdotL, 0);
-    color.g += pointColors.diffuse[1] * 255 * lights[0].diffuse[1] * max(NdotL, 0);
-    color.b += pointColors.diffuse[2] * 255 * lights[0].diffuse[2] * max(NdotL, 0);
+    color.r += pointColors.diffuse[0] * lights[0].diffuse[0] * max(NdotL, 0);
+    color.g += pointColors.diffuse[1] * lights[0].diffuse[1] * max(NdotL, 0);
+    color.b += pointColors.diffuse[2] * lights[0].diffuse[2] * max(NdotL, 0);
 
-    color.r += pointColors.specular[0] * 255 * lights[0].specular[0] * max(NdotH, 0)**pointColors.n;
-    color.g += pointColors.specular[1] * 255 * lights[0].specular[1] * max(NdotH, 0)**pointColors.n;
-    color.b += pointColors.specular[2] * 255 * lights[0].specular[2] * max(NdotH, 0)**pointColors.n;
+    color.r += pointColors.specular[0] * lights[0].specular[0] * max(NdotH, 0)**pointColors.n;
+    color.g += pointColors.specular[1] * lights[0].specular[1] * max(NdotH, 0)**pointColors.n;
+    color.b += pointColors.specular[2] * lights[0].specular[2] * max(NdotH, 0)**pointColors.n;
 
     color.r = min(color.r, 255);
     color.g = min(color.g, 255);
@@ -135,15 +137,24 @@ function loadTriangles() {
             
             // set up the vertex coord array
             for (whichSetVert=0; whichSetVert<inputTriangles[whichSet].vertices.length; whichSetVert++){
-                coordArray = coordArray.concat(inputTriangles[whichSet].vertices[whichSetVert]);
-                //Add the colors for each vertex (Will be the same for all of the same type).
+                
+                var currentVertex = inputTriangles[whichSet].vertices[whichSetVert];
+                var currentVector = new Vector(currentVertex[0], currentVertex[1], currentVertex[2]);
 
-                colorsArray = colorsArray.concat(inputTriangles[whichSet].material.diffuse);
+                var currentNormal = inputTriangles[whichSet].normals[whichSetVert];
+                var currentVNormal = new Vector(currentNormal[0], currentNormal[1], currentNormal[2]);
+
+                //Add the colors for each vertex (Will be the same for all of the same type).
+                var color = doLighting(currentVector, currentVNormal, inputTriangles[whichSet].material, new Vector(Eye[0], Eye[1], Eye[2]));
+                console.log(color);
+                var newColors = [color.r, color.g, color.b];
+
+                colorsArray = colorsArray.concat(newColors);
                 colorsArray = colorsArray.concat(1.0);
+                coordArray = coordArray.concat(currentVertex);
                 currentOffset++;
             }
         } // end for each triangle set 
-        console.log(indexArray);
 
         //Create vertex buffer and fill it with our data
         vertexBuffer = gl.createBuffer(); // init empty vertex coord buffer

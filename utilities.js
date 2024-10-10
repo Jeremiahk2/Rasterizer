@@ -276,3 +276,11 @@ toConsole() {
 }  // end Color toConsole
 
 } // end color class
+
+function max(first, second) {
+    return first > second ? first : second;
+}
+
+function min(first, second) {
+    return first < second ? first : second;
+}
