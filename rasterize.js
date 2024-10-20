@@ -8,6 +8,12 @@ const INPUT_TRIANGLES_URL = "https://ncsucgclass.github.io/prog3/triangles2.json
 const INPUT_LIGHTS_URL = "https://ncsucgclass.github.io/prog3/lights.json";
 //const INPUT_SPHERES_URL = "https://ncsucgclass.github.io/prog3/spheres.json"; // spheres file loc
 var Eye = new vec4.fromValues(0.5,0.5,-0.5,1.0); // default eye position in world space
+
+let eye=vec3.fromValues(.5, .5, -.5);
+let center=vec3.fromValues(.5, .5, .5);
+let up=vec3.fromValues(0,1,0);
+var cameraAngleRadians = degToRad(0);
+
 var inputTriangles = getJSONFile(INPUT_TRIANGLES_URL,"triangles");
 var lights = [
     {"x": -.5, "y": 1.5, "z": -0.5, "ambient": [1,1,1], "diffuse": [1,1,1], "specular": [1,1,1]}
@@ -176,19 +182,16 @@ function loadTriangles() {
         } // end for each triangle set 
 
         //Create vertex buffer and fill it with our data
-        vertexBuffer = gl.createBuffer(); // init empty vertex coord buffer
         gl.bindBuffer(gl.ARRAY_BUFFER,vertexBuffer); // activate that buffer
         gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(coordArray),gl.STATIC_DRAW); // coords to that buffer
 
         //Create color buffer and fill it with our data
-        triangleVertexColorBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexColorBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colorsArray), gl.STATIC_DRAW);
         triangleVertexColorBuffer.itemSize = 4;
         triangleVertexColorBuffer.numItems = 3;
 
         //Create element array buffer and fill it with our data.
-        triangleBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuffer);
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indexArray), gl.STATIC_DRAW);
     } // end if triangles found
@@ -270,7 +273,6 @@ function renderTriangles() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
     // bgColor = (bgColor < 1) ? (bgColor + 0.001) : 0;
     gl.clearColor(0, 0, 0, 1.0);
-    // requestAnimationFrame(renderTriangles);
 
     //Set up view
     var fieldOfViewRadians = degToRad(90);
@@ -282,9 +284,6 @@ function renderTriangles() {
     var perspectiveMatrix=mat4.create();
     var uniformMatrix=mat4.create();
 
-    let eye=vec3.fromValues(.5, .5, -.5);
-    let center=vec3.fromValues(.5, .5, .5);
-    let up=vec3.fromValues(0,1,0);
     mat4.lookAt(lookAtMatrix,eye,center,up);
     mat4.perspective(perspectiveMatrix,fieldOfViewRadians, aspect, zNear, zFar);
     mat4.multiply(uniformMatrix,lookAtMatrix,uniformMatrix);
@@ -294,13 +293,14 @@ function renderTriangles() {
 
 
     //Activate vertex buffer and feed it in.
+    console.log("Here1");
     gl.bindBuffer(gl.ARRAY_BUFFER,vertexBuffer); // activate
+    console.log("Here2");
     gl.vertexAttribPointer(vertexPositionAttrib,3,gl.FLOAT,false,0,0);
 
     //Activate color vertex buffer and feed it in.
     gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexColorBuffer);
     gl.vertexAttribPointer(vertexColorAttrib, triangleVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
-
     //Activate index buffer.
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuffer);
 
@@ -311,11 +311,60 @@ function renderTriangles() {
 /* MAIN -- HERE is where execution begins after window load */
 
 function main() {
-  
-  setupWebGL(); // set up the webGL environment
-  loadTriangles(); // load in the triangles from tri file
-  setupShaders(); // setup the webGL shaders
-  renderTriangles(); // draw the triangles using webGL
+
+    document.addEventListener('keydown', (event)=> {
+        if (event.key == "d") {
+            eye[0] = eye[0] - .01;
+            center[0] = center[0] - .01;
+            triBufferSize = 0;
+            loadTriangles();
+            requestAnimationFrame(renderTriangles);
+        }
+        if (event.key == "a") {
+            eye[0] = eye[0] + .01;
+            center[0] = center[0] + .01;
+            triBufferSize = 0;
+            loadTriangles();
+            requestAnimationFrame(renderTriangles);
+        }
+        if (event.key == "w") {
+            eye[2] = eye[2] + .01;
+            center[2] = center[2] + .01;
+            triBufferSize = 0;
+            loadTriangles();
+            requestAnimationFrame(renderTriangles);
+        }
+        if (event.key == "s") {
+            eye[2] = eye[2] - .01;
+            center[2] = center[2] - .01;
+            triBufferSize = 0;
+            loadTriangles();
+            requestAnimationFrame(renderTriangles);
+        }
+        if (event.key == "q") {
+            eye[1] = eye[1] + .01;
+            center[1] = center[1] + .01;
+            triBufferSize = 0;
+            loadTriangles();
+            requestAnimationFrame(renderTriangles);
+        }
+        if (event.key == "e") {
+            eye[1] = eye[1] - .01;
+            center[1] = center[1] - .01;
+            triBufferSize = 0;
+            loadTriangles();
+            requestAnimationFrame(renderTriangles);
+        }
+
+    })
+
+    setupWebGL(); // set up the webGL environment
+    vertexBuffer = gl.createBuffer();
+    triangleVertexColorBuffer = gl.createBuffer();
+    triangleBuffer = gl.createBuffer();
+    loadTriangles(); // load in the triangles from tri file
+    setupShaders(); // setup the webGL shaders
+    renderTriangles(); // draw the triangles using webGL
   
 } // end main
 
