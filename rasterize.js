@@ -4,8 +4,7 @@
 const WIN_Z = 0;  // default graphics window z coord in world space
 const WIN_LEFT = 0; const WIN_RIGHT = 1;  // default left and right x coords in world space
 const WIN_BOTTOM = 0; const WIN_TOP = 1;  // default top and bottom y coords in world space
-const INPUT_TRIANGLES_URL = "https://ncsucgclass.github.io/prog3/triangles.json"; // triangles file loc
-const INPUT_ELLIPSOIDS_URL = "https://ncsucgclass.github.io/prog3/ellipsoids.json";
+const INPUT_TRIANGLES_URL = "https://ncsucgclass.github.io/prog3/triangles2.json"; // triangles file loc
 const INPUT_LIGHTS_URL = "https://ncsucgclass.github.io/prog3/lights.json";
 //const INPUT_SPHERES_URL = "https://ncsucgclass.github.io/prog3/spheres.json"; // spheres file loc
 var Eye = new vec4.fromValues(0.5,0.5,-0.5,1.0); // default eye position in world space
@@ -79,14 +78,13 @@ function setupWebGL() {
 } // end setupWebGL
 
 function doLighting(worldCoords, N, pointColors, eye) {
+
     var color = new Color();
     var V = Vector.subtract(eye, worldCoords);
     var worldLoc = worldCoords;
 
     var lVect = new Vector(lights[0].x, lights[0].y, lights[0].z);
 
-    //Convert them into pixels at the correct points.
-    lVect.y = 1 - lVect.y;
     // get light vector
     lVect = Vector.subtract(lVect,worldLoc);
 
@@ -97,8 +95,8 @@ function doLighting(worldCoords, N, pointColors, eye) {
     }
 
     var NdotL = Vector.dot(Vector.normalize(N), Vector.normalize(lVect));
+    console.log(NdotL);
     var NdotH = Vector.dot(Vector.normalize(N), Vector.normalize(Vector.add(Vector.normalize(lVect), Vector.normalize(V))))
-    // console.log(NdotL);
     // calc diffuse color
     color.r = pointColors.ambient[0] * lights[0].ambient[0]
     color.g = pointColors.ambient[1] * lights[0].ambient[1]
@@ -112,9 +110,9 @@ function doLighting(worldCoords, N, pointColors, eye) {
     color.g += pointColors.specular[1] * lights[0].specular[1] * max(NdotH, 0)**pointColors.n;
     color.b += pointColors.specular[2] * lights[0].specular[2] * max(NdotH, 0)**pointColors.n;
 
-    color.r = min(color.r, 255);
-    color.g = min(color.g, 255);
-    color.b = min(color.b, 255);
+    color.r = min(color.r, 1);
+    color.g = min(color.g, 1);
+    color.b = min(color.b, 1);
 
     return color;
 }
@@ -129,12 +127,37 @@ function loadTriangles() {
         var indexArray = []; //Index array for triangles using index buffer.
         var colorsArray = [];
         
+        //Loop through the arrays of types of triangles.
         for (var whichSet=0; whichSet<inputTriangles.length; whichSet++) {
+            var vertexColors = [];
 
+            //Loop through the triangle index arrays
             for (whichSetTri=0; whichSetTri<inputTriangles[whichSet].triangles.length; whichSetTri++){
-                //Loop through the triangle arrays.
+
+                var currentVertices = []
+                //For each vertex (index) in the triangle.
                 for (var i = 0; i < 3; i++) {
-                    indexArray = indexArray.concat(currentOffset +  inputTriangles[whichSet].triangles[whichSetTri][i]);
+                    //Get triangle's vertex index.
+                    var index = currentOffset +  inputTriangles[whichSet].triangles[whichSetTri][i]; //The index into the ENTIRE list of vertices across types.
+                    indexArray = indexArray.concat(index); //Set up the index array
+
+                    var vIndex = index - currentOffset; //The index into just this type of triangle.
+                    var v = inputTriangles[whichSet].vertices[vIndex] //the current vertex
+                    currentVertices[i] = new Vector(v[0], v[1], v[2]); //Set up the mini vertex array.
+                }
+
+                //Get the normal for this triangle.
+                var currentNormal = Vector.cross(Vector.subtract(currentVertices[1], currentVertices[0]), Vector.subtract(currentVertices[2], currentVertices[0]));
+
+                //For each vertex in the triangle.
+                for (var i = 0; i < 3; i++) {
+                    //Get index
+                    var vIndex = inputTriangles[whichSet].triangles[whichSetTri][i];
+                    var currentVertex = inputTriangles[whichSet].vertices[vIndex]
+                    var currentVector = new Vector(currentVertex[0], currentVertex[1], currentVertex[2]);
+                    var color = doLighting(currentVector, currentNormal, inputTriangles[whichSet].material, new Vector(Eye[0], Eye[1], Eye[2]));
+                    var newColors = [color.r, color.g, color.b];
+                    vertexColors[vIndex] = newColors;
                     triBufferSize++;
                 }
             }
@@ -143,19 +166,11 @@ function loadTriangles() {
             for (whichSetVert=0; whichSetVert<inputTriangles[whichSet].vertices.length; whichSetVert++){
                 
                 var currentVertex = inputTriangles[whichSet].vertices[whichSetVert];
-                var currentVector = new Vector(currentVertex[0], currentVertex[1], currentVertex[2]);
-
-                var currentNormal = inputTriangles[whichSet].normals[whichSetVert];
-                var currentVNormal = new Vector(currentNormal[0], currentNormal[1], currentNormal[2]);
-
-                //Add the colors for each vertex (Will be the same for all of the same type).
-                var color = doLighting(currentVector, currentVNormal, inputTriangles[whichSet].material, new Vector(Eye[0], Eye[1], Eye[2]));
-                console.log(color);
-                var newColors = [color.r, color.g, color.b];
-
-                colorsArray = colorsArray.concat(newColors);
-                colorsArray = colorsArray.concat(1.0);
                 coordArray = coordArray.concat(currentVertex);
+                if (vertexColors[whichSetVert] != undefined) {
+                    colorsArray = colorsArray.concat(vertexColors[whichSetVert]);
+                    colorsArray = colorsArray.concat(1.0); //Finish the colors array for this triangle.
+                }
                 currentOffset++;
             }
         } // end for each triangle set 
@@ -208,12 +223,10 @@ function setupShaders() {
     `;
     
     try {
-        // console.log("fragment shader: "+fShaderCode);
         var fShader = gl.createShader(gl.FRAGMENT_SHADER); // create frag shader
         gl.shaderSource(fShader,fShaderCode); // attach code to shader
         gl.compileShader(fShader); // compile the code for gpu execution
 
-        // console.log("vertex shader: "+vShaderCode);
         var vShader = gl.createShader(gl.VERTEX_SHADER); // create vertex shader
         gl.shaderSource(vShader,vShaderCode); // attach code to shader
         gl.compileShader(vShader); // compile the code for gpu execution
@@ -252,52 +265,25 @@ function setupShaders() {
 var bgColor = 0;
 // render the loaded model
 
-function drawScene(projectionMatrix, cameraMatrix, worldMatrix) {
-    // Make a view matrix from the camera matrix.
-    const viewMatrix = m4.inverse(cameraMatrix);
-   
-    // multiply them together to make a worldViewProjection matrix.
-    let mat = m4.multiply(projectionMatrix, viewMatrix);
-    mat = m4.multiply(mat, worldMatrix);
-   
-    gl.useProgram(programInfo.program);
-   
-    // ------ Draw the F --------
-   
-    // Setup all the needed attributes.
-    webglUtils.setBuffersAndAttributes(gl, programInfo, bufferInfo);
-   
-    // Set the uniforms
-    webglUtils.setUniforms(programInfo, {
-      u_matrix: mat,
-    });
-   
-    // calls gl.drawArrays or gl.drawElements
-    webglUtils.drawBufferInfo(gl, bufferInfo);
-  }
-
-var cameraAngleRadians = degToRad(0);
-var fieldOfViewRadians = degToRad(60);
-
 function renderTriangles() {
     var indexType = gl.UNSIGNED_SHORT;
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
-    bgColor = (bgColor < 1) ? (bgColor + 0.001) : 0;
-    gl.clearColor(bgColor, 0, 0, 1.0);
+    // bgColor = (bgColor < 1) ? (bgColor + 0.001) : 0;
+    gl.clearColor(0, 0, 0, 1.0);
     // requestAnimationFrame(renderTriangles);
 
     //Set up view
     var fieldOfViewRadians = degToRad(90);
     var aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
     var zNear = .5;
-    var zFar = 2000;
+    var zFar = 1.5;
 
     var lookAtMatrix=mat4.create();
     var perspectiveMatrix=mat4.create();
     var uniformMatrix=mat4.create();
 
-    let eye=vec3.fromValues(.5,.5,-.5);
-    let center=vec3.fromValues(0,0,1);
+    let eye=vec3.fromValues(.5, .5, -.5);
+    let center=vec3.fromValues(.5, .5, .5);
     let up=vec3.fromValues(0,1,0);
     mat4.lookAt(lookAtMatrix,eye,center,up);
     mat4.perspective(perspectiveMatrix,fieldOfViewRadians, aspect, zNear, zFar);
