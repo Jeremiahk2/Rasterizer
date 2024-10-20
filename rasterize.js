@@ -4,13 +4,16 @@
 const WIN_Z = 0;  // default graphics window z coord in world space
 const WIN_LEFT = 0; const WIN_RIGHT = 1;  // default left and right x coords in world space
 const WIN_BOTTOM = 0; const WIN_TOP = 1;  // default top and bottom y coords in world space
-const INPUT_TRIANGLES_URL = "https://ncsucgclass.github.io/prog3/triangles2.json"; // triangles file loc
+const INPUT_TRIANGLES_URL = "https://ncsucgclass.github.io/prog3/triangles.json"; // triangles file loc
 const INPUT_ELLIPSOIDS_URL = "https://ncsucgclass.github.io/prog3/ellipsoids.json";
 const INPUT_LIGHTS_URL = "https://ncsucgclass.github.io/prog3/lights.json";
 //const INPUT_SPHERES_URL = "https://ncsucgclass.github.io/prog3/spheres.json"; // spheres file loc
 var Eye = new vec4.fromValues(0.5,0.5,-0.5,1.0); // default eye position in world space
 var inputTriangles = getJSONFile(INPUT_TRIANGLES_URL,"triangles");
-var lights = getJSONFile(INPUT_LIGHTS_URL, "lights");
+var lights = [
+    {"x": -.5, "y": 1.5, "z": -0.5, "ambient": [1,1,1], "diffuse": [1,1,1], "specular": [1,1,1]}
+    ]
+    
 
 /* webgl globals */
 var gl = null; // the all powerful gl object. It's all here folks!
@@ -20,6 +23,7 @@ var triangleVertexColorBuffer;
 var vertexColorAttrib
 var triBufferSize = 0; // the number of indices in the triangle buffer
 var vertexPositionAttrib; // where to put position for vertex shader
+var matrixLocation;
 
 
 // ASSIGNMENT HELPER FUNCTIONS
@@ -192,11 +196,12 @@ function setupShaders() {
     var vShaderCode = `
         attribute vec3 vertexPosition;
         attribute vec4 aVertexColor;
+        uniform mat4 u_matrix;
 
         varying vec4 vColor;
 
         void main(void) {
-            gl_Position = vec4(vertexPosition, 1.0); // use the untransformed position
+            gl_Position = u_matrix * vec4(vertexPosition, 1.0); // use the untransformed position
 
             vColor = aVertexColor;
         }
@@ -229,6 +234,7 @@ function setupShaders() {
                 throw "error during shader program linking: " + gl.getProgramInfoLog(shaderProgram);
             } else { // no shader program link errors
                 gl.useProgram(shaderProgram); // activate shader program (frag and vert)
+                matrixLocation=gl.getUniformLocation(shaderProgram,"u_matrix");
                 vertexPositionAttrib = // get pointer to vertex shader input
                     gl.getAttribLocation(shaderProgram, "vertexPosition"); 
                 gl.enableVertexAttribArray(vertexPositionAttrib); // input to shader from array
@@ -245,12 +251,60 @@ function setupShaders() {
 } // end setup shaders
 var bgColor = 0;
 // render the loaded model
+
+function drawScene(projectionMatrix, cameraMatrix, worldMatrix) {
+    // Make a view matrix from the camera matrix.
+    const viewMatrix = m4.inverse(cameraMatrix);
+   
+    // multiply them together to make a worldViewProjection matrix.
+    let mat = m4.multiply(projectionMatrix, viewMatrix);
+    mat = m4.multiply(mat, worldMatrix);
+   
+    gl.useProgram(programInfo.program);
+   
+    // ------ Draw the F --------
+   
+    // Setup all the needed attributes.
+    webglUtils.setBuffersAndAttributes(gl, programInfo, bufferInfo);
+   
+    // Set the uniforms
+    webglUtils.setUniforms(programInfo, {
+      u_matrix: mat,
+    });
+   
+    // calls gl.drawArrays or gl.drawElements
+    webglUtils.drawBufferInfo(gl, bufferInfo);
+  }
+
+var cameraAngleRadians = degToRad(0);
+var fieldOfViewRadians = degToRad(60);
+
 function renderTriangles() {
     var indexType = gl.UNSIGNED_SHORT;
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
     bgColor = (bgColor < 1) ? (bgColor + 0.001) : 0;
     gl.clearColor(bgColor, 0, 0, 1.0);
     // requestAnimationFrame(renderTriangles);
+
+    //Set up view
+    var fieldOfViewRadians = degToRad(90);
+    var aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
+    var zNear = .5;
+    var zFar = 2000;
+
+    var lookAtMatrix=mat4.create();
+    var perspectiveMatrix=mat4.create();
+    var uniformMatrix=mat4.create();
+
+    let eye=vec3.fromValues(.5,.5,-.5);
+    let center=vec3.fromValues(0,0,1);
+    let up=vec3.fromValues(0,1,0);
+    mat4.lookAt(lookAtMatrix,eye,center,up);
+    mat4.perspective(perspectiveMatrix,fieldOfViewRadians, aspect, zNear, zFar);
+    mat4.multiply(uniformMatrix,lookAtMatrix,uniformMatrix);
+    mat4.multiply(uniformMatrix,perspectiveMatrix,uniformMatrix);
+    gl.uniformMatrix4fv(matrixLocation,false,uniformMatrix);
+    //End view
 
 
     //Activate vertex buffer and feed it in.
@@ -278,3 +332,5 @@ function main() {
   renderTriangles(); // draw the triangles using webGL
   
 } // end main
+
+//Remember gl.enable(gl.DEPTH_TEST) from orthographic 3d.
