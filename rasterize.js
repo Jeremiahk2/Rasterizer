@@ -272,7 +272,7 @@ function setupShaders() {
             float NdotE = dot(normalize(fragNormal), normalize(viewPosition));
 
             vec3 N = fragNormal;
-            if (NdotE >= 0.0) {
+            if (NdotE < 0.0) {
                 N = N * -1.0;
             }
 
@@ -337,10 +337,10 @@ function setupShaders() {
 
         void main() {
             // Transform the vertex position to clip space
-            gl_Position = perspectiveMatrix * modelMatrix * viewMatrix * vec4(vertexPosition, 1.0);
+            gl_Position =  perspectiveMatrix * modelMatrix * viewMatrix * vec4(vertexPosition, 1.0);
 
-            fragNormal = normalize(mat3(modelViewMatrix) * normal); // Transform normal
-            fragPosition = vec3(modelMatrix * viewMatrix * vec4(vertexPosition, 1.0)); // Transform position
+            fragNormal = normalize(mat3(modelViewMatrix) * mat3(perspectiveMatrix) * normal); // Transform normal
+            fragPosition = vertexPosition;
 
             fragAmbient = ambient; // Pass ambient color
             fragDiffuse = diffuse; // Pass diffuse color
