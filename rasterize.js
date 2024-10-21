@@ -209,7 +209,7 @@ function setupShaders() {
         varying float fragShininess; 
 
         //Static inputs
-        uniform vec3 lightPosition;   // Light source position
+        uniform vec3 lightPosition;   // Light source position Need to modify this. DO NOT apply the model transform, just view and perspective
         uniform vec3 viewPosition;    // Camera position
         uniform vec3 lightAmbient;
         uniform vec3 lightDiffuse;
@@ -253,7 +253,9 @@ function setupShaders() {
             //     gl_FragColor = vColor;
             // }
 
-            gl_FragColor = color;
+            if (viewPosition[1] == 0.5) {
+                gl_FragColor = color;
+            }
         }
     `;
     
@@ -290,8 +292,8 @@ function setupShaders() {
             // Transform the vertex position to clip space
             gl_Position =  perspectiveMatrix * modelMatrix * viewMatrix * vec4(vertexPosition, 1.0);
 
-            fragNormal = normalize(mat3(modelMatrix) * mat3(viewMatrix) * mat3(perspectiveMatrix) * normal); // Transform normal
-            fragPosition = vertexPosition;
+            fragNormal = mat3(modelMatrix) * mat3(viewMatrix) * mat3(perspectiveMatrix) * normal; // Transform normal
+            fragPosition = mat3(modelMatrix) * mat3(viewMatrix) * mat3(perspectiveMatrix) * vertexPosition;
 
             fragAmbient = ambient; // Pass ambient color
             fragDiffuse = diffuse; // Pass diffuse color
