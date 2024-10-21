@@ -321,6 +321,8 @@ function setupShaders() {
         attribute float shininess;
 
         //Static inputs
+        uniform mat4 modelMatrix;
+        uniform mat4 viewMatrix;
         uniform mat4 modelViewMatrix;
         uniform mat4 perspectiveMatrix;
 
@@ -335,10 +337,10 @@ function setupShaders() {
 
         void main() {
             // Transform the vertex position to clip space
-            gl_Position = perspectiveMatrix * modelViewMatrix * vec4(vertexPosition, 1.0);
+            gl_Position = perspectiveMatrix * modelMatrix * viewMatrix * vec4(vertexPosition, 1.0);
 
-            fragNormal = normal; //normalize(mat3(modelViewMatrix) * normal); // Transform normal
-            fragPosition = vec3(modelViewMatrix * vec4(vertexPosition, 1.0)); // Transform position
+            fragNormal = normalize(mat3(modelViewMatrix) * normal); // Transform normal
+            fragPosition = vec3(modelMatrix * viewMatrix * vec4(vertexPosition, 1.0)); // Transform position
 
             fragAmbient = ambient; // Pass ambient color
             fragDiffuse = diffuse; // Pass diffuse color
@@ -377,7 +379,8 @@ function setupShaders() {
 
                 gl.useProgram(shaderProgram); // activate shader program (frag and vert)
 
-
+                modelLocation=gl.getUniformLocation(shaderProgram,"modelMatrix");
+                viewLocation=gl.getUniformLocation(shaderProgram,"viewMatrix");
                 modelViewLocation=gl.getUniformLocation(shaderProgram,"modelViewMatrix");
                 perspectiveLocation=gl.getUniformLocation(shaderProgram,"perspectiveMatrix");
                 lightDiffuseLocation=gl.getUniformLocation(shaderProgram,"lightDiffuse");
@@ -453,24 +456,25 @@ function renderTriangles() {
     var zFar = 1.5;
 
     //Create our matrices
-    var lookAtMatrix=mat4.create();
-    var perspectiveMatrix=mat4.create();
-    var modelViewMatrix=mat4.create();
+    var viewMatrix=mat4.create();
     var modelMatrix = mat4.create();
+    var modelViewMatrix=mat4.create();
+    var perspectiveMatrix=mat4.create();
 
     //Set up our matrices
     mat4.fromTranslation(modelMatrix, new vec3.fromValues(0, 0, 0));
-    mat4.lookAt(lookAtMatrix,eye,center,up); //View matrix
+    mat4.lookAt(viewMatrix,eye,center,up); //View matrix
     mat4.perspective(perspectiveMatrix,fieldOfViewRadians, aspect, zNear, zFar); //Perspective Matrix (Projection)
 
     //Combine them
     mat4.multiply(modelViewMatrix, modelMatrix, modelViewMatrix);
-    mat4.multiply(modelViewMatrix,lookAtMatrix,modelViewMatrix);
+    mat4.multiply(modelViewMatrix,viewMatrix,modelViewMatrix);
     // mat4.multiply(uniformMatrix,perspectiveMatrix,uniformMatrix);
     //Send them
+    gl.uniformMatrix4fv(viewLocation, false, viewMatrix);
+    gl.uniformMatrix4fv(modelLocation, false, modelMatrix);
     gl.uniformMatrix4fv(modelViewLocation,false,modelViewMatrix);
     gl.uniformMatrix4fv(perspectiveLocation,false,perspectiveMatrix);
-    gl.uniformMatrix4fv(viewLocation, false, lookAtMatrix);
 
     gl.uniform3fv(lightDiffuseLocation,new vec3.fromValues(lights[0].diffuse[0], lights[0].diffuse[1], lights[0].diffuse[2],));
     gl.uniform3fv(lightAmbientLocation,new vec3.fromValues(lights[0].ambient[0], lights[0].ambient[1], lights[0].ambient[2]));
