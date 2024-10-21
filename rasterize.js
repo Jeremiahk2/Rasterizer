@@ -8,7 +8,6 @@ const INPUT_TRIANGLES_URL = "https://ncsucgclass.github.io/prog3/triangles2.json
 const INPUT_LIGHTS_URL = "https://ncsucgclass.github.io/prog3/lights.json";
 //const INPUT_SPHERES_URL = "https://ncsucgclass.github.io/prog3/spheres.json"; // spheres file loc
 
-var Eye = new vec4.fromValues(0.5,0.5,-0.5,1.0); // default eye position in world space
 let eye=vec3.fromValues(.5, .5, -.5);
 let center=vec3.fromValues(.5, .5, .5);
 let up=vec3.fromValues(0,1,0);
@@ -82,46 +81,6 @@ function setupWebGL() {
     } // end catch
  
 } // end setupWebGL
-
-function doLighting(worldCoords, N, pointColors, eye) {
-
-    var color = new Color();
-    var V = Vector.subtract(eye, worldCoords);
-    var worldLoc = worldCoords;
-
-    var lVect = new Vector(lights[0].x, lights[0].y, lights[0].z);
-
-    // get light vector
-    lVect = Vector.subtract(lVect,worldLoc);
-
-    //If the normal is facing away from the eye, flip it for correct lighting.
-    var NdotE = Vector.dot(Vector.normalize(N), Vector.normalize(eye));
-    if (NdotE < 0) {
-        N = Vector.scale(-1, N);
-    }
-
-    var NdotL = Vector.dot(Vector.normalize(N), Vector.normalize(lVect));
-    var NdotH = Vector.dot(Vector.normalize(N), Vector.normalize(Vector.add(Vector.normalize(lVect), Vector.normalize(V))))
-    // calc diffuse color
-    color.r = pointColors.ambient[0] * lights[0].ambient[0]
-    color.g = pointColors.ambient[1] * lights[0].ambient[1]
-    color.b = pointColors.ambient[2] * lights[0].ambient[2]
-
-    color.r += pointColors.diffuse[0] * lights[0].diffuse[0] * max(NdotL, 0);
-    color.g += pointColors.diffuse[1] * lights[0].diffuse[1] * max(NdotL, 0);
-    color.b += pointColors.diffuse[2] * lights[0].diffuse[2] * max(NdotL, 0);
-
-    color.r += pointColors.specular[0] * lights[0].specular[0] * max(NdotH, 0)**pointColors.n;
-    color.g += pointColors.specular[1] * lights[0].specular[1] * max(NdotH, 0)**pointColors.n;
-    color.b += pointColors.specular[2] * lights[0].specular[2] * max(NdotH, 0)**pointColors.n;
-
-    color.r = min(color.r, 1);
-    color.g = min(color.g, 1);
-    color.b = min(color.b, 1);
-
-    return color;
-}
-
 // read triangles in, load them into webgl buffers
 function loadTriangles() {
     if (inputTriangles != String.null) { 
@@ -163,13 +122,6 @@ function loadTriangles() {
                 for (var i = 0; i < 3; i++) {
                     //Get index
                     var vIndex = inputTriangles[whichSet].triangles[whichSetTri][i];
-                    var currentVertex = inputTriangles[whichSet].vertices[vIndex]
-                    var currentVector = new Vector(currentVertex[0], currentVertex[1], currentVertex[2]);
-                    var color = doLighting(currentVector, currentNormal, inputTriangles[whichSet].material, new Vector(Eye[0], Eye[1], Eye[2]));
-
-
-                    var newColors = [color.r, color.g, color.b];
-                    vertexColors[vIndex] = newColors; //Fil Color buffer (TO BE DELETED)
 
                     var index = vIndex + currentOffset;
                     normalArray[index * 3 + 0] = currentNormal.x; //Fill normal array
@@ -196,7 +148,6 @@ function loadTriangles() {
                     triBufferSize++;
                 }
             }
-            
             
             // set up the vertex coord array
             for (whichSetVert=0; whichSetVert<inputTriangles[whichSet].vertices.length; whichSetVert++){
@@ -339,7 +290,7 @@ function setupShaders() {
             // Transform the vertex position to clip space
             gl_Position =  perspectiveMatrix * modelMatrix * viewMatrix * vec4(vertexPosition, 1.0);
 
-            fragNormal = normalize(mat3(modelViewMatrix) * mat3(perspectiveMatrix) * normal); // Transform normal
+            fragNormal = normalize(mat3(modelMatrix) * mat3(viewMatrix) * mat3(perspectiveMatrix) * normal); // Transform normal
             fragPosition = vertexPosition;
 
             fragAmbient = ambient; // Pass ambient color
@@ -418,6 +369,7 @@ function setupShaders() {
 //Vertex data:
 var modelLocation;
 var viewLocation;
+var modelViewLocation
 var perspectiveLocation;
 var lightDiffuseLocation;
 var lightAmbientLocation;
@@ -443,48 +395,48 @@ var shininessBuffer;
 var bgColor = 0;
 // render the loaded model
 
-function renderTriangles() {
-    var indexType = gl.UNSIGNED_SHORT;
+var viewMatrix=mat4.create();
+var modelMatrix = mat4.create();
+var modelViewMatrix=mat4.create();
+var perspectiveMatrix=mat4.create();
+
+mat4.fromTranslation(modelMatrix, new vec3.fromValues(0.0, 0, 0));
+mat4.lookAt(viewMatrix,eye,center,up); //View matrix
+
+function update() {
+    triBufferSize = 0;
+    loadTriangles();
+
+    //Clear board
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
-    // bgColor = (bgColor < 1) ? (bgColor + 0.001) : 0;
     gl.clearColor(0, 0, 0, 1.0);
 
-    //Set up view
+
+    //Set up Perspective
+    var indexType = gl.UNSIGNED_SHORT;
     var fieldOfViewRadians = degToRad(90);
     var aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
-    var zNear = .5;
-    var zFar = 1.5;
-
-    //Create our matrices
-    var viewMatrix=mat4.create();
-    var modelMatrix = mat4.create();
-    var modelViewMatrix=mat4.create();
-    var perspectiveMatrix=mat4.create();
-
-    //Set up our matrices
-    mat4.fromTranslation(modelMatrix, new vec3.fromValues(0, 0, 0));
-    mat4.lookAt(viewMatrix,eye,center,up); //View matrix
+    var zNear = .1;
+    var zFar = 100;
     mat4.perspective(perspectiveMatrix,fieldOfViewRadians, aspect, zNear, zFar); //Perspective Matrix (Projection)
 
-    //Combine them
-    mat4.multiply(modelViewMatrix, modelMatrix, modelViewMatrix);
-    mat4.multiply(modelViewMatrix,viewMatrix,modelViewMatrix);
-    // mat4.multiply(uniformMatrix,perspectiveMatrix,uniformMatrix);
-    //Send them
+
+    //Uniform matrices
     gl.uniformMatrix4fv(viewLocation, false, viewMatrix);
     gl.uniformMatrix4fv(modelLocation, false, modelMatrix);
     gl.uniformMatrix4fv(modelViewLocation,false,modelViewMatrix);
     gl.uniformMatrix4fv(perspectiveLocation,false,perspectiveMatrix);
 
+    //Uniform vec3's
     gl.uniform3fv(lightDiffuseLocation,new vec3.fromValues(lights[0].diffuse[0], lights[0].diffuse[1], lights[0].diffuse[2],));
     gl.uniform3fv(lightAmbientLocation,new vec3.fromValues(lights[0].ambient[0], lights[0].ambient[1], lights[0].ambient[2]));
     gl.uniform3fv(lightSpecularLocation,new vec3.fromValues(lights[0].specular[0], lights[0].specular[1], lights[0].specular[2]));
     gl.uniform3fv(lightPosLocation,new vec3.fromValues(lights[0].x, lights[0].y, lights[0].z));
-    gl.uniform3fv(viewPosition, new vec3.fromValues(Eye[0], Eye[1], Eye[2]));
+    gl.uniform3fv(viewPosition, new vec3.fromValues(eye[0], eye[1], eye[2]));
     //End view
 
 
-    //Activate vertex buffer and feed it in.
+    //Buffers
     gl.bindBuffer(gl.ARRAY_BUFFER,vertexBuffer); // activate
     gl.vertexAttribPointer(vertexPositionAttrib,3,gl.FLOAT,false,0,0);
 
@@ -510,7 +462,7 @@ function renderTriangles() {
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuffer);
 
     gl.drawElements(gl.TRIANGLES, triBufferSize, indexType, 0); // render
-} // end render triangles
+}
 
 
 /* MAIN -- HERE is where execution begins after window load */
@@ -519,46 +471,75 @@ function main() {
 
     document.addEventListener('keydown', (event)=> {
         if (event.key == "d") {
-            eye[0] = eye[0] - .01;
-            center[0] = center[0] - .01;
-            triBufferSize = 0;
-            loadTriangles();
-            requestAnimationFrame(renderTriangles);
+            eye[0] += .01;
+            center[0] += .01
+            mat4.lookAt(viewMatrix,eye,center,up); //View matrix
+            requestAnimationFrame(update);
         }
         if (event.key == "a") {
-            eye[0] = eye[0] + .01;
-            center[0] = center[0] + .01;
-            triBufferSize = 0;
-            loadTriangles();
-            requestAnimationFrame(renderTriangles);
+            eye[0] -= .01;
+            center[0] -= .01
+            mat4.lookAt(viewMatrix,eye,center,up); //View matrix
+            requestAnimationFrame(update);
         }
         if (event.key == "w") {
-            eye[2] = eye[2] + .01;
-            center[2] = center[2] + .01;
-            triBufferSize = 0;
-            loadTriangles();
-            requestAnimationFrame(renderTriangles);
+            eye[2] += .01;
+            center[2] += .01
+            mat4.lookAt(viewMatrix,eye,center,up); //View matrix
+            requestAnimationFrame(update);
         }
         if (event.key == "s") {
-            eye[2] = eye[2] - .01;
-            center[2] = center[2] - .01;
-            triBufferSize = 0;
-            loadTriangles();
-            requestAnimationFrame(renderTriangles);
+            eye[2] -= .01;
+            center[2] -= .01
+            mat4.lookAt(viewMatrix,eye,center,up); //View matrix
+            requestAnimationFrame(update);
         }
         if (event.key == "q") {
-            eye[1] = eye[1] + .01;
-            center[1] = center[1] + .01;
-            triBufferSize = 0;
-            loadTriangles();
-            requestAnimationFrame(renderTriangles);
+            eye[1] += .01;
+            center[1] += .01
+            mat4.lookAt(viewMatrix,eye,center,up); //View matrix
+            requestAnimationFrame(update);
         }
         if (event.key == "e") {
-            eye[1] = eye[1] - .01;
-            center[1] = center[1] - .01;
-            triBufferSize = 0;
-            loadTriangles();
-            requestAnimationFrame(renderTriangles);
+            eye[1] -= .01;
+            center[1] -= .01
+            mat4.lookAt(viewMatrix,eye,center,up); //View matrix
+            requestAnimationFrame(update);
+        }
+        if (event.key == "A") {
+            const rotationMatrix = mat4.create();
+            mat4.rotate(rotationMatrix, rotationMatrix, degToRad(-1), vec3.fromValues(0, 1, 0));
+
+            vec3.transformMat4(center, center, rotationMatrix);
+            mat4.lookAt(viewMatrix,eye,center,up); //View matrix
+            requestAnimationFrame(update);
+        }
+        if (event.key == "D") {
+            const rotationMatrix = mat4.create();
+            mat4.rotate(rotationMatrix, rotationMatrix, degToRad(1), vec3.fromValues(0, 1, 0));
+
+            vec3.transformMat4(center, center, rotationMatrix);
+            mat4.lookAt(viewMatrix,eye,center,up); //View matrix
+            requestAnimationFrame(update);
+        }
+        if (event.key == "W") {
+            const rotationMatrix = mat4.create();
+            mat4.rotate(rotationMatrix, rotationMatrix, degToRad(1), vec3.fromValues(1, 0, 0));
+
+            vec3.transformMat4(center, center, rotationMatrix);
+            vec3.transformMat4(up, up, rotationMatrix);
+
+            mat4.lookAt(viewMatrix,eye,center,up); //View matrix
+            requestAnimationFrame(update);
+        }
+        if (event.key == "S") {
+            const rotationMatrix = mat4.create();
+            mat4.rotate(rotationMatrix, rotationMatrix, degToRad(-1), vec3.fromValues(1, 0, 0));
+
+            vec3.transformMat4(center, center, rotationMatrix);
+            vec3.transformMat4(up, up, rotationMatrix);
+            mat4.lookAt(viewMatrix,eye,center,up); //View matrix
+            requestAnimationFrame(update);
         }
 
     })
@@ -572,9 +553,8 @@ function main() {
     diffuseBuffer = gl.createBuffer();
     specularBuffer = gl.createBuffer();
     shininessBuffer = gl.createBuffer();
-    loadTriangles(); // load in the triangles from tri file
     setupShaders(); // setup the webGL shaders
-    renderTriangles(); // draw the triangles using webGL
+    update(); // draw the triangles using webGL
   
 } // end main
 
