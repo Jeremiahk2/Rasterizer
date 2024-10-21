@@ -130,7 +130,12 @@ function loadTriangles() {
         var whichSetTri; // index of triangle in current triangle set
         var coordArray = []; // 1D array of vertex coords for WebGL
         var indexArray = []; //Index array for triangles using index buffer.
+        var normalArray = [];
         var colorsArray = [];
+        var ambientArray = [];
+        var diffuseArray = [];
+        var specularArray = [];
+        var shininessArray = [];
         
         //Loop through the arrays of types of triangles.
         for (var whichSet=0; whichSet<inputTriangles.length; whichSet++) {
@@ -161,8 +166,31 @@ function loadTriangles() {
                     var currentVertex = inputTriangles[whichSet].vertices[vIndex]
                     var currentVector = new Vector(currentVertex[0], currentVertex[1], currentVertex[2]);
                     var color = doLighting(currentVector, currentNormal, inputTriangles[whichSet].material, new Vector(Eye[0], Eye[1], Eye[2]));
+
+
                     var newColors = [color.r, color.g, color.b];
-                    vertexColors[vIndex] = newColors;
+                    vertexColors[vIndex] = newColors; //Fil Color buffer (TO BE DELETED)
+
+                    var index = vIndex + currentOffset;
+                    normalArray[index] = currentNormal; //Fill normal array
+                    
+                    ambientArray[index * 3 + 0] = inputTriangles[whichSet].material.ambient[0];
+                    ambientArray[index * 3 + 1] = inputTriangles[whichSet].material.ambient[1];
+                    ambientArray[index * 3 + 2] = inputTriangles[whichSet].material.ambient[2];
+
+                    diffuseArray[index * 3 + 0] = inputTriangles[whichSet].material.diffuse[0];
+                    diffuseArray[index * 3 + 1] = inputTriangles[whichSet].material.diffuse[1];
+                    diffuseArray[index * 3 + 2] = inputTriangles[whichSet].material.diffuse[2];
+
+                    specularArray[index * 3 + 0] = inputTriangles[whichSet].material.specular[0];
+                    specularArray[index * 3 + 1] = inputTriangles[whichSet].material.specular[1];
+                    specularArray[index * 3 + 2] = inputTriangles[whichSet].material.specular[2];
+
+                    shininessArray[index] = inputTriangles[whichSet].material.n
+                    shininessArray[index] = inputTriangles[whichSet].material.n;
+                    shininessArray[index] = inputTriangles[whichSet].material.n;
+
+
                     triBufferSize++;
                 }
             }
@@ -179,25 +207,25 @@ function loadTriangles() {
                 currentOffset++;
             }
         } // end for each triangle set 
-
+        console.log(diffuseArray);
         //Create vertex buffer and fill it with our data
         gl.bindBuffer(gl.ARRAY_BUFFER,vertexBuffer); // activate that buffer
         gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(coordArray),gl.STATIC_DRAW); // coords to that buffer
 
         gl.bindBuffer(gl.ARRAY_BUFFER,normalBuffer); // activate that buffer
-        gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([]),gl.STATIC_DRAW); // coords to that buffer
+        gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(normalArray),gl.STATIC_DRAW); // coords to that buffer
 
         gl.bindBuffer(gl.ARRAY_BUFFER,ambientBuffer); // activate that buffer
-        gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([]),gl.STATIC_DRAW); // coords to that buffer
+        gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(ambientArray),gl.STATIC_DRAW); // coords to that buffer
 
         gl.bindBuffer(gl.ARRAY_BUFFER,diffuseBuffer); // activate that buffer
-        gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([]),gl.STATIC_DRAW); // coords to that buffer
+        gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(diffuseArray),gl.STATIC_DRAW); // coords to that buffer
 
         gl.bindBuffer(gl.ARRAY_BUFFER,specularBuffer); // activate that buffer
-        gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([]),gl.STATIC_DRAW); // coords to that buffer
+        gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(specularArray),gl.STATIC_DRAW); // coords to that buffer
 
         gl.bindBuffer(gl.ARRAY_BUFFER,shininessBuffer); // activate that buffer
-        gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([1, 2, 3, 4]),gl.STATIC_DRAW); // coords to that buffer
+        gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(shininessArray),gl.STATIC_DRAW); // coords to that buffer
 
         //Create element array buffer and fill it with our data.
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuffer);
@@ -269,7 +297,9 @@ function setupShaders() {
         void main() {
             // Transform the vertex position to clip space
             gl_Position = perspectiveMatrix * modelViewMatrix * vec4(vertexPosition, 1.0);
-            vColor = aVertexColor;
+            if (shininess == 40.0) {
+                vColor = aVertexColor;
+            }
 
             fragNormal = normalize(mat3(modelViewMatrix) * normal); // Transform normal
             fragPosition = vec3(modelViewMatrix * vec4(vertexPosition, 1.0)); // Transform position
