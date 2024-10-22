@@ -218,16 +218,8 @@ function setupShaders() {
         void main(void) {
             
             vec4 N = normalize(fragNormal);
-
             vec4 lVect = lightPos - fragPosition;
             vec4 V = viewPosition - fragPosition;
-            
-            
-            float NdotE = dot(normalize(N), normalize(viewPosition));
-
-            // if (NdotE < 0.0) {
-            //     N = N * -1.0;
-            // }
 
             float NdotL = dot(normalize(N), normalize(lVect));
             float NdotH = dot(normalize(N), normalize(normalize(lVect) + normalize(V)));
@@ -246,7 +238,9 @@ function setupShaders() {
             color[1] += fragSpecular[1] * lightSpecular[1] * pow(max(NdotH, 0.0), fragShininess);
             color[2] += fragSpecular[2] * lightSpecular[2] * pow(max(NdotH, 0.0), fragShininess);
 
-            // if (N[0] == 0.0)
+            // color[0] = 0.0;
+            // color[1] = 0.0;
+            // color[2] = NdotL;
             gl_FragColor = color;
 
         }
@@ -283,10 +277,12 @@ function setupShaders() {
         void main() {
             // Transform the vertex position to clip space
             // if (true)
-                gl_Position =  perspectiveMatrix *  viewMatrix * modelMatrix * vec4(vertexPosition, 1.0);
-            fragNormal = modelViewMatrix  * vec4(normal, 1.0); // Transform normal
+                gl_Position =  perspectiveMatrix * viewMatrix * modelMatrix * vec4(vertexPosition, 1.0);
+
+
+            fragNormal = modelViewMatrix * vec4(normal, 1.0); // Transform normal
             fragPosition = perspectiveMatrix * modelMatrix * vec4(vertexPosition, 1.0);
-            lightPos = vec4(lightPosition, 1.0);
+            lightPos =  perspectiveMatrix * vec4(lightPosition, 1.0);
 
             fragAmbient = ambient; // Pass ambient color
             fragDiffuse = diffuse; // Pass diffuse color
@@ -391,11 +387,10 @@ var modelViewMatrix=mat4.create();
 var perspectiveMatrix=mat4.create();
 var storageMatrix = mat4.create();
 
-mat4.fromTranslation(modelMatrix, new vec3.fromValues(-.1, 0.0, 0));
+mat4.fromTranslation(modelMatrix, new vec3.fromValues(0.0, 0.0, 0));
 mat4.lookAt(viewMatrix,eye,center,up); //View matrix
 
 function update() {
-    console.log(eye);
     triBufferSize = 0;
     loadTriangles();
 
