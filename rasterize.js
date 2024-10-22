@@ -15,7 +15,7 @@ var cameraAngleRadians = degToRad(0);
 
 var inputTriangles = getJSONFile(INPUT_TRIANGLES_URL,"triangles");
 var lights = [
-    {"x": -.5, "y": 1.5, "z": -0.5, "ambient": [1,1,1], "diffuse": [1,1,1], "specular": [1,1,1]}
+    {"x": -.5, "y": 1.5, "z": -.5, "ambient": [1,1,1], "diffuse": [1,1,1], "specular": [1,1,1]}
     ]
     
 
@@ -200,41 +200,43 @@ function setupShaders() {
         precision mediump float;
 
         //vShader inputs
-        varying vec4 vColor;
-        varying vec3 fragNormal;          // Varying for normal
-        varying vec3 fragPosition;        // Varying for fragment position
+        varying vec4 fragNormal;          // Varying for normal
+        varying vec4 fragPosition;        // Varying for fragment position
         varying vec3 fragDiffuse; 
         varying vec3 fragAmbient; 
         varying vec3 fragSpecular; 
         varying float fragShininess; 
+        varying vec4 lightPos;
 
         //Static inputs
-        uniform vec3 lightPosition;   // Light source position Need to modify this. DO NOT apply the model transform, just view and perspective
-        uniform vec3 viewPosition;    // Camera position
+           // Light source position Need to modify this. DO NOT apply the model transform, just view and perspective
+        uniform vec4 viewPosition;    // Camera position
         uniform vec3 lightAmbient;
         uniform vec3 lightDiffuse;
         uniform vec3 lightSpecular;
 
         void main(void) {
-        
-            vec3 lVect = lightPosition - fragPosition;
             
-            
-            float NdotE = dot(normalize(fragNormal), normalize(viewPosition));
+            vec4 N = normalize(fragNormal);
 
-            vec3 N = fragNormal;
-            if (NdotE < 0.0) {
-                N = N * -1.0;
-            }
+            vec4 lVect = lightPos - fragPosition;
+            vec4 V = viewPosition - fragPosition;
+            
+            
+            float NdotE = dot(normalize(N), normalize(viewPosition));
+
+            // if (NdotE < 0.0) {
+            //     N = N * -1.0;
+            // }
 
             float NdotL = dot(normalize(N), normalize(lVect));
-            float NdotH = dot(normalize(N), normalize(normalize(lVect) + normalize(viewPosition)));
+            float NdotH = dot(normalize(N), normalize(normalize(lVect) + normalize(V)));
 
-            vec4 color;
+            vec4 color = vec4(0.0, 0.0, 0.0, 1.0);
 
-            color[0] = fragAmbient[0] * lightAmbient[0];
-            color[1] = fragAmbient[1] * lightAmbient[1];
-            color[2] = fragAmbient[2] * lightAmbient[2];
+            color[0] += fragAmbient[0] * lightAmbient[0];
+            color[1] += fragAmbient[1] * lightAmbient[1];
+            color[2] += fragAmbient[2] * lightAmbient[2];
 
             color[0] += fragDiffuse[0] * lightDiffuse[0] * max(NdotL, 0.0);
             color[1] += fragDiffuse[1] * lightDiffuse[1] * max(NdotL, 0.0);
@@ -244,18 +246,9 @@ function setupShaders() {
             color[1] += fragSpecular[1] * lightSpecular[1] * pow(max(NdotH, 0.0), fragShininess);
             color[2] += fragSpecular[2] * lightSpecular[2] * pow(max(NdotH, 0.0), fragShininess);
 
-            color[0] = min(color[0], 1.0);
-            color[1] = min(color[1], 1.0);
-            color[2] = min(color[2], 1.0);
-            color[3] = 1.0;
+            // if (N[0] == 0.0)
+            gl_FragColor = color;
 
-            // if (NdotE >= 0.0) {
-            //     gl_FragColor = vColor;
-            // }
-
-            if (viewPosition[1] == 0.5) {
-                gl_FragColor = color;
-            }
         }
     `;
     
@@ -265,8 +258,6 @@ function setupShaders() {
 
         //Buffer inputs
         attribute vec3 vertexPosition;
-
-        attribute vec4 aVertexColor;
         attribute vec3 normal;
         attribute vec3 ambient;   // Ambient light color
         attribute vec3 diffuse;
@@ -278,29 +269,29 @@ function setupShaders() {
         uniform mat4 viewMatrix;
         uniform mat4 modelViewMatrix;
         uniform mat4 perspectiveMatrix;
+        uniform vec3 lightPosition;
 
         //Outputs
-        varying vec4 vColor;
-        varying vec3 fragNormal;          // Varying for normal
-        varying vec3 fragPosition;        // Varying for fragment position
+        varying vec4 fragNormal;          // Varying for normal
+        varying vec4 fragPosition;        // Varying for fragment position
         varying vec3 fragAmbient;
         varying vec3 fragDiffuse;
         varying vec3 fragSpecular;
         varying float fragShininess;
+        varying vec4 lightPos;
 
         void main() {
             // Transform the vertex position to clip space
-            gl_Position =  perspectiveMatrix * modelMatrix * viewMatrix * vec4(vertexPosition, 1.0);
-
-            fragNormal = mat3(modelMatrix) * mat3(viewMatrix) * mat3(perspectiveMatrix) * normal; // Transform normal
-            fragPosition = mat3(modelMatrix) * mat3(viewMatrix) * mat3(perspectiveMatrix) * vertexPosition;
+            // if (true)
+                gl_Position =  perspectiveMatrix *  viewMatrix * modelMatrix * vec4(vertexPosition, 1.0);
+            fragNormal = modelViewMatrix  * vec4(normal, 1.0); // Transform normal
+            fragPosition = perspectiveMatrix * modelMatrix * vec4(vertexPosition, 1.0);
+            lightPos = vec4(lightPosition, 1.0);
 
             fragAmbient = ambient; // Pass ambient color
             fragDiffuse = diffuse; // Pass diffuse color
             fragSpecular = specular; // Pass specular color
             fragShininess = shininess;
-
-            vColor = aVertexColor;
         }
     `;
     
@@ -356,9 +347,6 @@ function setupShaders() {
 
                 vertexPositionAttrib = gl.getAttribLocation(shaderProgram, "vertexPosition"); 
                 gl.enableVertexAttribArray(vertexPositionAttrib); // input to shader from array
-
-                vertexColorAttrib = gl.getAttribLocation(shaderProgram, "aVertexColor");
-                gl.enableVertexAttribArray(vertexColorAttrib);
             } // end if no shader program link errors
         } // end if no compile errors
     } // end try 
@@ -401,11 +389,13 @@ var viewMatrix=mat4.create();
 var modelMatrix = mat4.create();
 var modelViewMatrix=mat4.create();
 var perspectiveMatrix=mat4.create();
+var storageMatrix = mat4.create();
 
-mat4.fromTranslation(modelMatrix, new vec3.fromValues(0.0, 0, 0));
+mat4.fromTranslation(modelMatrix, new vec3.fromValues(-.1, 0.0, 0));
 mat4.lookAt(viewMatrix,eye,center,up); //View matrix
 
 function update() {
+    console.log(eye);
     triBufferSize = 0;
     loadTriangles();
 
@@ -421,6 +411,8 @@ function update() {
     var zNear = .1;
     var zFar = 100;
     mat4.perspective(perspectiveMatrix,fieldOfViewRadians, aspect, zNear, zFar); //Perspective Matrix (Projection)
+    mat4.invert(modelViewMatrix, modelMatrix);
+    mat4.transpose(modelViewMatrix, modelViewMatrix);
 
 
     //Uniform matrices
@@ -434,7 +426,7 @@ function update() {
     gl.uniform3fv(lightAmbientLocation,new vec3.fromValues(lights[0].ambient[0], lights[0].ambient[1], lights[0].ambient[2]));
     gl.uniform3fv(lightSpecularLocation,new vec3.fromValues(lights[0].specular[0], lights[0].specular[1], lights[0].specular[2]));
     gl.uniform3fv(lightPosLocation,new vec3.fromValues(lights[0].x, lights[0].y, lights[0].z));
-    gl.uniform3fv(viewPosition, new vec3.fromValues(eye[0], eye[1], eye[2]));
+    gl.uniform4fv(viewPosition, new vec4.fromValues(eye[0], eye[1], eye[2], 1.0));
     //End view
 
 
@@ -456,10 +448,6 @@ function update() {
 
     gl.bindBuffer(gl.ARRAY_BUFFER,shininessBuffer); // activate
     gl.vertexAttribPointer(shininessattrib,1,gl.FLOAT,false,0,0);
-
-    //Activate color vertex buffer and feed it in.
-    gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexColorBuffer);
-    gl.vertexAttribPointer(vertexColorAttrib, triangleVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
     //Activate index buffer.
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuffer);
 
