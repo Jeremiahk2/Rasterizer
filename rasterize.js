@@ -246,10 +246,14 @@ function setupShaders() {
         uniform vec3 lightSpecular;
 
         void main(void) {
-            
-            vec4 N = normalize(fragNormal);
-            vec4 lVect = lightPos - fragPosition;
-            vec4 V = viewPosition - fragPosition;
+            vec3 realNormal = vec3(fragNormal[0], fragNormal[1], fragNormal[2]);
+            vec3 realLightPos = vec3(lightPos[0], lightPos[1], lightPos[2]);
+            vec3 realFragPosition = vec3(fragPosition[0], fragPosition[1], fragPosition[2]);
+            vec3 realView = vec3(viewPosition[0], viewPosition[1], viewPosition[2]);
+
+            vec3 N = normalize(realNormal);
+            vec3 lVect = realLightPos - realFragPosition;
+            vec3 V = realView - realFragPosition;
 
             float NdotL = dot(normalize(N), normalize(lVect));
             float NdotH = dot(normalize(N), normalize(normalize(lVect) + normalize(V)));
@@ -270,7 +274,8 @@ function setupShaders() {
 
             // color[0] = 0.0;
             // color[1] = 0.0;
-            // color[2] = NdotL;
+            // color[2] = length((lVect)) - 1.7;
+
             gl_FragColor = color;
 
         }
@@ -336,17 +341,17 @@ function setupShaders() {
             mat4 translationMatrix = mat4(1.0);
             translationMatrix[3] = vec4(translation, 1.0);
 
-
-            gl_Position =  perspectiveMatrix * viewMatrix * translationMatrix * highlight * vec4(vertexPosition, 1.0);
-
             fragNormal = modelViewMatrix * vec4(normal, 1.0); // Transform normal
-            fragPosition = perspectiveMatrix * modelMatrix * vec4(vertexPosition, 1.0);
+            fragPosition = translationMatrix * vec4(vertexPosition, 1.0);
             lightPos =  vec4(lightPosition, 1.0);
 
             fragAmbient = ambient; // Pass ambient color
             fragDiffuse = diffuse; // Pass diffuse color
             fragSpecular = specular; // Pass specular color
             fragShininess = shininess;
+
+            gl_Position =  perspectiveMatrix * viewMatrix * translationMatrix * highlight * vec4(vertexPosition, 1.0);
+
         }
     `;
     
