@@ -29,6 +29,10 @@ var triBufferSize = 0; // the number of indices in the triangle buffer
 var vertexPositionAttrib; // where to put position for vertex shader
 var matrixLocation;
 
+var whichSetScale = [];
+var whichSetTransform = [];
+var currentSelection = 0;
+
 
 // ASSIGNMENT HELPER FUNCTIONS
 
@@ -81,6 +85,9 @@ function setupWebGL() {
     } // end catch
  
 } // end setupWebGL
+
+
+
 // read triangles in, load them into webgl buffers
 function loadTriangles() {
     if (inputTriangles != String.null) { 
@@ -95,6 +102,8 @@ function loadTriangles() {
         var diffuseArray = [];
         var specularArray = [];
         var shininessArray = [];
+        var scaleArray = [];
+        var centerArray = [];
         
         //Loop through the arrays of types of triangles.
         for (var whichSet=0; whichSet<inputTriangles.length; whichSet++) {
@@ -113,20 +122,26 @@ function loadTriangles() {
                     var vIndex = index - currentOffset; //The index into just this type of triangle.
                     var v = inputTriangles[whichSet].vertices[vIndex] //the current vertex
                     currentVertices[i] = new Vector(v[0], v[1], v[2]); //Set up the mini vertex array.
+
                 }
 
                 //Get the normal for this triangle.
                 var currentNormal = Vector.cross(Vector.subtract(currentVertices[1], currentVertices[0]), Vector.subtract(currentVertices[2], currentVertices[0]));
-
+                var currentCenter = Vector.add(Vector.add(currentVertices[0], currentVertices[1]), currentVertices[2]);
+                currentCenter = Vector.scale(1/3.0, currentCenter);
                 //For each vertex in the triangle.
                 for (var i = 0; i < 3; i++) {
                     //Get index
                     var vIndex = inputTriangles[whichSet].triangles[whichSetTri][i];
 
                     var index = vIndex + currentOffset;
-                    normalArray[index * 3 + 0] = currentNormal.x; //Fill normal array
-                    normalArray[index * 3 + 1] = currentNormal.y; //Fill normal array
-                    normalArray[index * 3 + 2] = currentNormal.z; //Fill normal array
+                    normalArray[index * 3 + 0] = currentNormal.x; 
+                    normalArray[index * 3 + 1] = currentNormal.y; 
+                    normalArray[index * 3 + 2] = currentNormal.z; 
+
+                    centerArray[index * 3 + 0] = currentCenter.x; 
+                    centerArray[index * 3 + 1] = currentCenter.y; 
+                    centerArray[index * 3 + 2] = currentCenter.z; 
                     
                     ambientArray[index * 3 + 0] = inputTriangles[whichSet].material.ambient[0];
                     ambientArray[index * 3 + 1] = inputTriangles[whichSet].material.ambient[1];
@@ -141,8 +156,8 @@ function loadTriangles() {
                     specularArray[index * 3 + 2] = inputTriangles[whichSet].material.specular[2];
 
                     shininessArray[index] = inputTriangles[whichSet].material.n
-                    shininessArray[index] = inputTriangles[whichSet].material.n;
-                    shininessArray[index] = inputTriangles[whichSet].material.n;
+
+                    scaleArray[index] = whichSetScale[whichSet];
 
 
                     triBufferSize++;
@@ -179,6 +194,13 @@ function loadTriangles() {
 
         gl.bindBuffer(gl.ARRAY_BUFFER,shininessBuffer); // activate that buffer
         gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(shininessArray),gl.STATIC_DRAW); // coords to that buffer
+
+        gl.bindBuffer(gl.ARRAY_BUFFER,scaleBuffer); // activate that buffer
+        gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(scaleArray),gl.STATIC_DRAW); // coords to that buffer
+
+        gl.bindBuffer(gl.ARRAY_BUFFER,centerBuffer); // activate that buffer
+        gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(centerArray),gl.STATIC_DRAW); // coords to that buffer
+
 
         //Create element array buffer and fill it with our data.
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuffer);
@@ -257,6 +279,9 @@ function setupShaders() {
         attribute vec3 diffuse;
         attribute vec3 specular;
         attribute float shininess;
+        //Transform inputs
+        attribute float scaleFactor;
+        attribute vec3 center;
 
         //Static inputs
         uniform mat4 modelMatrix;
@@ -264,6 +289,14 @@ function setupShaders() {
         uniform mat4 modelViewMatrix;
         uniform mat4 perspectiveMatrix;
         uniform vec3 lightPosition;
+
+        mat4 scale(mat4 m, vec3 s) {
+            m[0][0] *= s.x;
+            m[1][1] *= s.y;
+            m[2][2] *= s.z;
+            return m;
+        }
+
 
         //Outputs
         varying vec4 fragNormal;          // Varying for normal
@@ -275,14 +308,28 @@ function setupShaders() {
         varying vec4 lightPos;
 
         void main() {
-            // Transform the vertex position to clip space
-            // if (true)
-                gl_Position =  perspectiveMatrix * viewMatrix * modelMatrix * vec4(vertexPosition, 1.0);
 
+            //Translate to origin using center
+            mat4 translateToOrigin = mat4(1.0);
+            translateToOrigin[3] = vec4(-center, 1.0);
+
+            //Scale
+            mat4 scaling = mat4(1.0);
+            scaling = scale(scaling, vec3(scaleFactor, scaleFactor, scaleFactor));
+
+            //Translate back
+            mat4 translateBack = mat4(1.0);
+            translateBack[3] = vec4(center, 1.0);
+
+            //Combine
+            mat4 highlight = translateBack * scaling * translateToOrigin;
+
+
+            gl_Position =  perspectiveMatrix * viewMatrix * highlight * vec4(vertexPosition, 1.0);
 
             fragNormal = modelViewMatrix * vec4(normal, 1.0); // Transform normal
             fragPosition = perspectiveMatrix * modelMatrix * vec4(vertexPosition, 1.0);
-            lightPos =  perspectiveMatrix * vec4(lightPosition, 1.0);
+            lightPos =  vec4(lightPosition, 1.0);
 
             fragAmbient = ambient; // Pass ambient color
             fragDiffuse = diffuse; // Pass diffuse color
@@ -316,7 +363,7 @@ function setupShaders() {
                 throw "error during shader program linking: " + gl.getProgramInfoLog(shaderProgram);
             } else { // no shader program link errors
 
-
+   
                 gl.useProgram(shaderProgram); // activate shader program (frag and vert)
 
                 modelLocation=gl.getUniformLocation(shaderProgram,"modelMatrix");
@@ -329,16 +376,21 @@ function setupShaders() {
                 lightPosLocation=gl.getUniformLocation(shaderProgram,"lightPosition");
                 viewPosition=gl.getUniformLocation(shaderProgram,"viewPosition");
 
+
                 normalattrib = gl.getAttribLocation(shaderProgram, "normal"); 
                 ambientattrib = gl.getAttribLocation(shaderProgram, "ambient"); 
                 diffuseattrib = gl.getAttribLocation(shaderProgram, "diffuse"); 
                 specularattrib = gl.getAttribLocation(shaderProgram, "specular"); 
                 shininessattrib = gl.getAttribLocation(shaderProgram, "shininess"); 
+                scaleattrib = gl.getAttribLocation(shaderProgram, "scaleFactor"); 
+                centerattrib = gl.getAttribLocation(shaderProgram, "center"); 
                 gl.enableVertexAttribArray(normalattrib); // input to shader from array
                 gl.enableVertexAttribArray(ambientattrib); // input to shader from array
                 gl.enableVertexAttribArray(diffuseattrib); // input to shader from array
                 gl.enableVertexAttribArray(specularattrib); // input to shader from array
                 gl.enableVertexAttribArray(shininessattrib); // input to shader from array
+                gl.enableVertexAttribArray(scaleattrib); // input to shader from array
+                gl.enableVertexAttribArray(centerattrib); // input to shader from array
                 
 
                 vertexPositionAttrib = gl.getAttribLocation(shaderProgram, "vertexPosition"); 
@@ -369,6 +421,8 @@ var ambientattrib;
 var diffuseattrib;
 var specularattrib;
 var shininessattrib;
+var scaleattrib;
+var centerattrib;
 
 //Buffers
 var normalBuffer;
@@ -376,6 +430,8 @@ var ambientBuffer;
 var diffuseBuffer;
 var specularBuffer;
 var shininessBuffer;
+var scaleBuffer;
+var centerBuffer;
 
 
 var bgColor = 0;
@@ -386,8 +442,6 @@ var modelMatrix = mat4.create();
 var modelViewMatrix=mat4.create();
 var perspectiveMatrix=mat4.create();
 var storageMatrix = mat4.create();
-
-mat4.fromTranslation(modelMatrix, new vec3.fromValues(0.0, 0.0, 0));
 mat4.lookAt(viewMatrix,eye,center,up); //View matrix
 
 function update() {
@@ -422,6 +476,7 @@ function update() {
     gl.uniform3fv(lightSpecularLocation,new vec3.fromValues(lights[0].specular[0], lights[0].specular[1], lights[0].specular[2]));
     gl.uniform3fv(lightPosLocation,new vec3.fromValues(lights[0].x, lights[0].y, lights[0].z));
     gl.uniform4fv(viewPosition, new vec4.fromValues(eye[0], eye[1], eye[2], 1.0));
+
     //End view
 
 
@@ -443,6 +498,13 @@ function update() {
 
     gl.bindBuffer(gl.ARRAY_BUFFER,shininessBuffer); // activate
     gl.vertexAttribPointer(shininessattrib,1,gl.FLOAT,false,0,0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER,scaleBuffer); // activate
+    gl.vertexAttribPointer(scaleattrib,1,gl.FLOAT,false,0,0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER,centerBuffer); // activate
+    gl.vertexAttribPointer(centerattrib,3,gl.FLOAT,false,0,0);
+
     //Activate index buffer.
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuffer);
 
@@ -453,6 +515,11 @@ function update() {
 /* MAIN -- HERE is where execution begins after window load */
 
 function main() {
+
+    for (var i = 0; i < inputTriangles.length; i++) {
+        whichSetScale[i] = 1.0;
+        whichSetTransform[i] = new vec3.fromValues(0.0, 0.0, 0.0);
+    }
 
     document.addEventListener('keydown', (event)=> {
         if (event.key == "d") {
@@ -526,6 +593,24 @@ function main() {
             mat4.lookAt(viewMatrix,eye,center,up); //View matrix
             requestAnimationFrame(update);
         }
+        if (event.key == "ArrowLeft") {
+            whichSetScale[(currentSelection++) % whichSetScale.length] = 1.0;
+            whichSetScale[(currentSelection) % whichSetScale.length] = 1.2;
+            requestAnimationFrame(update);
+        }
+        if (event.key == "ArrowRight") {
+            whichSetScale[(currentSelection--) % whichSetScale.length] = 1.0;
+            if (currentSelection < 0) {
+                currentSelection = whichSetScale.length - 1;
+            }
+            whichSetScale[(currentSelection) % whichSetScale.length] = 1.2;
+            requestAnimationFrame(update);
+        }
+        if (event.key == " ") {
+            whichSetScale[(currentSelection) % whichSetScale.length] = 1.0;
+            requestAnimationFrame(update);
+
+        }
 
     })
 
@@ -538,6 +623,8 @@ function main() {
     diffuseBuffer = gl.createBuffer();
     specularBuffer = gl.createBuffer();
     shininessBuffer = gl.createBuffer();
+    scaleBuffer = gl.createBuffer();
+    centerBuffer = gl.createBuffer();
     setupShaders(); // setup the webGL shaders
     update(); // draw the triangles using webGL
   
