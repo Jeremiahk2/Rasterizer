@@ -30,7 +30,7 @@ var vertexPositionAttrib; // where to put position for vertex shader
 var matrixLocation;
 
 var whichSetScale = [];
-var whichSetTransform = [];
+var whichSetTranslate = [];
 var currentSelection = 0;
 
 
@@ -104,6 +104,7 @@ function loadTriangles() {
         var shininessArray = [];
         var scaleArray = [];
         var centerArray = [];
+        var translationArray = [];
         
         //Loop through the arrays of types of triangles.
         for (var whichSet=0; whichSet<inputTriangles.length; whichSet++) {
@@ -142,6 +143,10 @@ function loadTriangles() {
                     centerArray[index * 3 + 0] = currentCenter.x; 
                     centerArray[index * 3 + 1] = currentCenter.y; 
                     centerArray[index * 3 + 2] = currentCenter.z; 
+
+                    translationArray[index * 3 + 0] = whichSetTranslate[whichSet][0];
+                    translationArray[index * 3 + 1] = whichSetTranslate[whichSet][1];
+                    translationArray[index * 3 + 2] = whichSetTranslate[whichSet][2];
                     
                     ambientArray[index * 3 + 0] = inputTriangles[whichSet].material.ambient[0];
                     ambientArray[index * 3 + 1] = inputTriangles[whichSet].material.ambient[1];
@@ -200,6 +205,9 @@ function loadTriangles() {
 
         gl.bindBuffer(gl.ARRAY_BUFFER,centerBuffer); // activate that buffer
         gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(centerArray),gl.STATIC_DRAW); // coords to that buffer
+
+        gl.bindBuffer(gl.ARRAY_BUFFER,translateBuffer); // activate that buffer
+        gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(translationArray),gl.STATIC_DRAW); // coords to that buffer
 
 
         //Create element array buffer and fill it with our data.
@@ -282,6 +290,7 @@ function setupShaders() {
         //Transform inputs
         attribute float scaleFactor;
         attribute vec3 center;
+        attribute vec3 translation;
 
         //Static inputs
         uniform mat4 modelMatrix;
@@ -324,8 +333,11 @@ function setupShaders() {
             //Combine
             mat4 highlight = translateBack * scaling * translateToOrigin;
 
+            mat4 translationMatrix = mat4(1.0);
+            translationMatrix[3] = vec4(translation, 1.0);
 
-            gl_Position =  perspectiveMatrix * viewMatrix * highlight * vec4(vertexPosition, 1.0);
+
+            gl_Position =  perspectiveMatrix * viewMatrix * translationMatrix * highlight * vec4(vertexPosition, 1.0);
 
             fragNormal = modelViewMatrix * vec4(normal, 1.0); // Transform normal
             fragPosition = perspectiveMatrix * modelMatrix * vec4(vertexPosition, 1.0);
@@ -384,6 +396,7 @@ function setupShaders() {
                 shininessattrib = gl.getAttribLocation(shaderProgram, "shininess"); 
                 scaleattrib = gl.getAttribLocation(shaderProgram, "scaleFactor"); 
                 centerattrib = gl.getAttribLocation(shaderProgram, "center"); 
+                translateattrib = gl.getAttribLocation(shaderProgram, "translation"); 
                 gl.enableVertexAttribArray(normalattrib); // input to shader from array
                 gl.enableVertexAttribArray(ambientattrib); // input to shader from array
                 gl.enableVertexAttribArray(diffuseattrib); // input to shader from array
@@ -391,6 +404,7 @@ function setupShaders() {
                 gl.enableVertexAttribArray(shininessattrib); // input to shader from array
                 gl.enableVertexAttribArray(scaleattrib); // input to shader from array
                 gl.enableVertexAttribArray(centerattrib); // input to shader from array
+                gl.enableVertexAttribArray(translateattrib); // input to shader from array
                 
 
                 vertexPositionAttrib = gl.getAttribLocation(shaderProgram, "vertexPosition"); 
@@ -423,6 +437,7 @@ var specularattrib;
 var shininessattrib;
 var scaleattrib;
 var centerattrib;
+var translateattrib
 
 //Buffers
 var normalBuffer;
@@ -432,6 +447,7 @@ var specularBuffer;
 var shininessBuffer;
 var scaleBuffer;
 var centerBuffer;
+var translateBuffer;
 
 
 var bgColor = 0;
@@ -505,6 +521,9 @@ function update() {
     gl.bindBuffer(gl.ARRAY_BUFFER,centerBuffer); // activate
     gl.vertexAttribPointer(centerattrib,3,gl.FLOAT,false,0,0);
 
+    gl.bindBuffer(gl.ARRAY_BUFFER,translateBuffer); // activate
+    gl.vertexAttribPointer(translateattrib,3,gl.FLOAT,false,0,0);
+
     //Activate index buffer.
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuffer);
 
@@ -518,7 +537,7 @@ function main() {
 
     for (var i = 0; i < inputTriangles.length; i++) {
         whichSetScale[i] = 1.0;
-        whichSetTransform[i] = new vec3.fromValues(0.0, 0.0, 0.0);
+        whichSetTranslate[i] = new vec3.fromValues(0.0, 0.0, 0.0);
     }
 
     document.addEventListener('keydown', (event)=> {
@@ -526,37 +545,31 @@ function main() {
             eye[0] += .01;
             center[0] += .01
             mat4.lookAt(viewMatrix,eye,center,up); //View matrix
-            requestAnimationFrame(update);
         }
         if (event.key == "a") {
             eye[0] -= .01;
             center[0] -= .01
             mat4.lookAt(viewMatrix,eye,center,up); //View matrix
-            requestAnimationFrame(update);
         }
         if (event.key == "w") {
             eye[2] += .01;
             center[2] += .01
             mat4.lookAt(viewMatrix,eye,center,up); //View matrix
-            requestAnimationFrame(update);
         }
         if (event.key == "s") {
             eye[2] -= .01;
             center[2] -= .01
             mat4.lookAt(viewMatrix,eye,center,up); //View matrix
-            requestAnimationFrame(update);
         }
         if (event.key == "q") {
             eye[1] += .01;
             center[1] += .01
             mat4.lookAt(viewMatrix,eye,center,up); //View matrix
-            requestAnimationFrame(update);
         }
         if (event.key == "e") {
             eye[1] -= .01;
             center[1] -= .01
             mat4.lookAt(viewMatrix,eye,center,up); //View matrix
-            requestAnimationFrame(update);
         }
         if (event.key == "A") {
             const rotationMatrix = mat4.create();
@@ -564,7 +577,6 @@ function main() {
 
             vec3.transformMat4(center, center, rotationMatrix);
             mat4.lookAt(viewMatrix,eye,center,up); //View matrix
-            requestAnimationFrame(update);
         }
         if (event.key == "D") {
             const rotationMatrix = mat4.create();
@@ -572,7 +584,6 @@ function main() {
 
             vec3.transformMat4(center, center, rotationMatrix);
             mat4.lookAt(viewMatrix,eye,center,up); //View matrix
-            requestAnimationFrame(update);
         }
         if (event.key == "W") {
             const rotationMatrix = mat4.create();
@@ -582,7 +593,6 @@ function main() {
             vec3.transformMat4(up, up, rotationMatrix);
 
             mat4.lookAt(viewMatrix,eye,center,up); //View matrix
-            requestAnimationFrame(update);
         }
         if (event.key == "S") {
             const rotationMatrix = mat4.create();
@@ -591,12 +601,10 @@ function main() {
             vec3.transformMat4(center, center, rotationMatrix);
             vec3.transformMat4(up, up, rotationMatrix);
             mat4.lookAt(viewMatrix,eye,center,up); //View matrix
-            requestAnimationFrame(update);
         }
         if (event.key == "ArrowLeft") {
             whichSetScale[(currentSelection++) % whichSetScale.length] = 1.0;
             whichSetScale[(currentSelection) % whichSetScale.length] = 1.2;
-            requestAnimationFrame(update);
         }
         if (event.key == "ArrowRight") {
             whichSetScale[(currentSelection--) % whichSetScale.length] = 1.0;
@@ -604,14 +612,42 @@ function main() {
                 currentSelection = whichSetScale.length - 1;
             }
             whichSetScale[(currentSelection) % whichSetScale.length] = 1.2;
-            requestAnimationFrame(update);
         }
         if (event.key == " ") {
             whichSetScale[(currentSelection) % whichSetScale.length] = 1.0;
-            requestAnimationFrame(update);
 
         }
-
+        if (event.key == "k") {
+            if (whichSetScale[(currentSelection) % whichSetScale.length] == 1.2) {
+                whichSetTranslate[(currentSelection) % whichSetScale.length][0] = whichSetTranslate[(currentSelection) % whichSetScale.length][0] + .01;
+            }
+        }
+        if (event.key == ";") {
+            if (whichSetScale[(currentSelection) % whichSetScale.length] == 1.2) {
+                whichSetTranslate[(currentSelection) % whichSetScale.length][0] = whichSetTranslate[(currentSelection) % whichSetScale.length][0] - .01;
+            }
+        }
+        if (event.key == "o") {
+            if (whichSetScale[(currentSelection) % whichSetScale.length] == 1.2) {
+                whichSetTranslate[(currentSelection) % whichSetScale.length][2] = whichSetTranslate[(currentSelection) % whichSetScale.length][2] + .01;
+            }
+        }
+        if (event.key == "l") {
+            if (whichSetScale[(currentSelection) % whichSetScale.length] == 1.2) {
+                whichSetTranslate[(currentSelection) % whichSetScale.length][2] = whichSetTranslate[(currentSelection) % whichSetScale.length][2] - .01;
+            }
+        }
+        if (event.key == "i") {
+            if (whichSetScale[(currentSelection) % whichSetScale.length] == 1.2) {
+                whichSetTranslate[(currentSelection) % whichSetScale.length][1] = whichSetTranslate[(currentSelection) % whichSetScale.length][1] + .01;
+            }
+        }
+        if (event.key == "p") {
+            if (whichSetScale[(currentSelection) % whichSetScale.length] == 1.2) {
+                whichSetTranslate[(currentSelection) % whichSetScale.length][1] = whichSetTranslate[(currentSelection) % whichSetScale.length][1] - .01;
+            }
+        }
+        requestAnimationFrame(update);
     })
 
     setupWebGL(); // set up the webGL environment
@@ -625,6 +661,7 @@ function main() {
     shininessBuffer = gl.createBuffer();
     scaleBuffer = gl.createBuffer();
     centerBuffer = gl.createBuffer();
+    translateBuffer = gl.createBuffer();
     setupShaders(); // setup the webGL shaders
     update(); // draw the triangles using webGL
   
