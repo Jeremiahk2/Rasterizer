@@ -9,7 +9,7 @@ const INPUT_LIGHTS_URL = "https://ncsucgclass.github.io/prog3/lights.json";
 //const INPUT_SPHERES_URL = "https://ncsucgclass.github.io/prog3/spheres.json"; // spheres file loc
 
 let eye=vec3.fromValues(.5, .5, -.5);
-let center=vec3.fromValues(.5, .5, 0.0);
+let center=vec3.fromValues(.5, .5, 0.5);
 let up=vec3.fromValues(0,1,0);
 var cameraAngleRadians = degToRad(0);
 
@@ -465,7 +465,12 @@ function setupShaders() {
 
             //Scale it
             mat4 scaling = mat4(1.0);
-            scaling = scale(scaling, vec3(scaleFactor, scaleFactor, scaleFactor));
+            if (shininess < 99.0) {
+                scaling = scale(scaling, vec3(scaleFactor, scaleFactor, scaleFactor));
+            }
+            else {
+                scaling = scale(scaling, vec3(scaleFactor, 1.0, scaleFactor));
+            }
 
             //Translate back
             mat4 translateBack = mat4(1.0);
@@ -680,9 +685,7 @@ function update() {
 
     gl.drawElements(gl.TRIANGLES, triBufferSize, indexType, 0); // render
 }
-
-
-
+var rotS = 0;
 
 /** MAIN
  * ALL setup code. Sets up my keybinds, creates my buffers, sets up openGL, and loads and renders my triangles for the first animation.
@@ -697,13 +700,13 @@ function main() {
 
     document.addEventListener('keydown', (event)=> {
         if (event.key == "d") {
-            eye[0] += .01;
-            center[0] += .01
+            eye[0] -= .01;
+            center[0] -= .01
             mat4.lookAt(viewMatrix,eye,center,up); //View matrix
         }
         if (event.key == "a") {
-            eye[0] -= .01;
-            center[0] -= .01
+            eye[0] += .01;
+            center[0] += .01
             mat4.lookAt(viewMatrix,eye,center,up); //View matrix
         }
         if (event.key == "w") {
@@ -728,23 +731,33 @@ function main() {
         }
         if (event.key == "A") {
             const rotationMatrix = mat4.create();
-            mat4.rotate(rotationMatrix, rotationMatrix, degToRad(-1), vec3.fromValues(0, 1, 0));
-
+            mat4.rotate(rotationMatrix, rotationMatrix, degToRad(1), vec3.fromValues(0, 1, 0));
+            
+            vec3.subtract(center, center, eye);
             vec3.transformMat4(center, center, rotationMatrix);
+            vec3.add(center, center, eye);
+            vec3.transformMat4(up, up, rotationMatrix);
+
             mat4.lookAt(viewMatrix,eye,center,up); //View matrix
         }
         if (event.key == "D") {
             const rotationMatrix = mat4.create();
-            mat4.rotate(rotationMatrix, rotationMatrix, degToRad(1), vec3.fromValues(0, 1, 0));
-
+            mat4.rotate(rotationMatrix, rotationMatrix, degToRad(-1), vec3.fromValues(0, 1, 0));
+            
+            vec3.subtract(center, center, eye);
             vec3.transformMat4(center, center, rotationMatrix);
+            vec3.add(center, center, eye);
+            vec3.transformMat4(up, up, rotationMatrix);
+
             mat4.lookAt(viewMatrix,eye,center,up); //View matrix
         }
         if (event.key == "W") {
             const rotationMatrix = mat4.create();
             mat4.rotate(rotationMatrix, rotationMatrix, degToRad(1), vec3.fromValues(1, 0, 0));
-
+            
+            vec3.subtract(center, center, eye);
             vec3.transformMat4(center, center, rotationMatrix);
+            vec3.add(center, center, eye);
             vec3.transformMat4(up, up, rotationMatrix);
 
             mat4.lookAt(viewMatrix,eye,center,up); //View matrix
@@ -752,9 +765,12 @@ function main() {
         if (event.key == "S") {
             const rotationMatrix = mat4.create();
             mat4.rotate(rotationMatrix, rotationMatrix, degToRad(-1), vec3.fromValues(1, 0, 0));
-
+            
+            vec3.subtract(center, center, eye);
             vec3.transformMat4(center, center, rotationMatrix);
+            vec3.add(center, center, eye);
             vec3.transformMat4(up, up, rotationMatrix);
+
             mat4.lookAt(viewMatrix,eye,center,up); //View matrix
         }
         if (event.key == "ArrowLeft") {
@@ -831,6 +847,21 @@ function main() {
             if (whichSetScale[(currentSelection) % whichSetScale.length] == 1.2) {
                 whichSetRotate[(currentSelection) % whichSetScale.length][2] = whichSetRotate[(currentSelection) % whichSetScale.length][2] - degToRad(3);
             }
+        }
+        if (event.key == "!") {
+            whichSetScale = [];
+            whichSetTranslate = [];
+            whichSetRotate = [];
+            currentSelection = 0;
+            inputTriangles = freestyle;
+            for (var i = 0; i < inputTriangles.length; i++) {
+                whichSetScale[i] = 1.0;
+                whichSetTranslate[i] = new vec3.fromValues(0.0, 0.0, 0.0);
+                whichSetRotate[i] = new vec3.fromValues(0.0, 0.0, 0.0);
+            }
+            lights = [
+                {"x": .835, "y": .35, "z": .08, "ambient": [1,1,1], "diffuse": [1,1,1], "specular": [1,1,1]}
+                ];
         }
 
         
