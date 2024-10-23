@@ -30,6 +30,7 @@ var matrixLocation;
 
 var whichSetScale = [];
 var whichSetTranslate = [];
+var whichSetRotate = [];
 var currentSelection = 0;
 
 
@@ -82,6 +83,7 @@ function setupWebGL() {
     catch(e) {
       console.log(e);
     } // end catch
+    gl.viewport(0, 0, canvas.width, canvas.height);
  
 } // end setupWebGL
 
@@ -104,6 +106,7 @@ function loadTriangles() {
         var scaleArray = [];
         var centerArray = [];
         var translationArray = [];
+        var rotationArray = [];
         
         //Loop through the arrays of types of triangles.
         for (var whichSet=0; whichSet<inputTriangles.length; whichSet++) {
@@ -127,8 +130,14 @@ function loadTriangles() {
 
                 //Get the normal for this triangle.
                 var currentNormal = Vector.cross(Vector.subtract(currentVertices[1], currentVertices[0]), Vector.subtract(currentVertices[2], currentVertices[0]));
-                var currentCenter = Vector.add(Vector.add(currentVertices[0], currentVertices[1]), currentVertices[2]);
-                currentCenter = Vector.scale(1/3.0, currentCenter);
+
+                var currentCenter = new Vector(0.0, 0.0, 0.0);
+                //For each vertex in the set, calculate the center point for scaling and rotations.
+                for (whichSetVert=0; whichSetVert<inputTriangles[whichSet].vertices.length; whichSetVert++){
+                    var v = inputTriangles[whichSet].vertices[whichSetVert] //the current vertex
+                    currentCenter = Vector.add(currentCenter, new Vector(v[0], v[1], v[2]));
+                }
+                currentCenter = Vector.scale(1.0 / inputTriangles[whichSet].vertices.length, currentCenter);
                 //For each vertex in the triangle.
                 for (var i = 0; i < 3; i++) {
                     //Get index
@@ -146,6 +155,10 @@ function loadTriangles() {
                     translationArray[index * 3 + 0] = whichSetTranslate[whichSet][0];
                     translationArray[index * 3 + 1] = whichSetTranslate[whichSet][1];
                     translationArray[index * 3 + 2] = whichSetTranslate[whichSet][2];
+
+                    rotationArray[index * 3 + 0] = whichSetRotate[whichSet][0];
+                    rotationArray[index * 3 + 1] = whichSetRotate[whichSet][1];
+                    rotationArray[index * 3 + 2] = whichSetRotate[whichSet][2];
                     
                     ambientArray[index * 3 + 0] = inputTriangles[whichSet].material.ambient[0];
                     ambientArray[index * 3 + 1] = inputTriangles[whichSet].material.ambient[1];
@@ -207,6 +220,9 @@ function loadTriangles() {
 
         gl.bindBuffer(gl.ARRAY_BUFFER,translateBuffer); // activate that buffer
         gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(translationArray),gl.STATIC_DRAW); // coords to that buffer
+
+        gl.bindBuffer(gl.ARRAY_BUFFER,rotationBuffer); // activate that buffer
+        gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(rotationArray),gl.STATIC_DRAW); // coords to that buffer
 
 
         //Create element array buffer and fill it with our data.
@@ -302,6 +318,7 @@ function setupShaders() {
         attribute float scaleFactor;
         attribute vec3 center;
         attribute vec3 translation;
+        attribute vec3 rotation;
 
         //Static inputs
         uniform mat4 modelMatrix;
@@ -317,6 +334,42 @@ function setupShaders() {
             return m;
         }
 
+        mat4 rotateX(float angle) {
+        float cosA = cos(angle);
+        float sinA = sin(angle);
+        
+        return mat4(
+            1.0,    0.0,     0.0,    0.0,
+            0.0,    cosA,   -sinA,   0.0,
+            0.0,    sinA,    cosA,   0.0,
+            0.0,    0.0,     0.0,    1.0
+        );
+    }
+
+    mat4 rotateY(float angle) {
+        float cosA = cos(angle);
+        float sinA = sin(angle);
+        
+        return mat4(
+            cosA,    0.0,    sinA,    0.0,
+            0.0,     1.0,     0.0,    0.0,
+            -sinA,   0.0,    cosA,    0.0,
+            0.0,     0.0,     0.0,    1.0
+        );
+    }
+
+    mat4 rotateZ(float angle) {
+        float cosA = cos(angle);
+        float sinA = sin(angle);
+        
+        return mat4(
+            cosA,   -sinA,    0.0,    0.0,
+            sinA,    cosA,    0.0,    0.0,
+            0.0,     0.0,     1.0,    0.0,
+            0.0,     0.0,     0.0,    1.0
+        );
+    }
+
 
         //Outputs
         varying vec4 fragNormal;          // Varying for normal
@@ -329,11 +382,12 @@ function setupShaders() {
 
         void main() {
 
+            //Scaling
             //Translate to origin using center
             mat4 translateToOrigin = mat4(1.0);
             translateToOrigin[3] = vec4(-center, 1.0);
 
-            //Scale
+            //Scale it
             mat4 scaling = mat4(1.0);
             scaling = scale(scaling, vec3(scaleFactor, scaleFactor, scaleFactor));
 
@@ -344,28 +398,23 @@ function setupShaders() {
             //Combine
             mat4 highlight = translateBack * scaling * translateToOrigin;
 
+            //Translating
             mat4 translationMatrix = mat4(1.0);
             translationMatrix[3] = vec4(translation, 1.0);
 
+            //Rotating
+            mat4 totalRotation = translateBack * rotateX(rotation[0]) * rotateY(rotation[1]) * rotateZ(rotation[2]) * translateToOrigin;
+
             fragNormal = vec4(normal, 1.0); // Transform normal  
-            fragPosition = translationMatrix * vec4(vertexPosition, 1.0);
+            fragPosition = translationMatrix * highlight * totalRotation * vec4(vertexPosition, 1.0);
             lightPos =   vec4(lightPosition, 1.0);
 
             fragAmbient = ambient; // Pass ambient color
             fragDiffuse = diffuse; // Pass diffuse color
             fragSpecular = specular; // Pass specular color
             fragShininess = shininess;
-            
-            vec4 test = perspectiveMatrix * viewMatrix * translationMatrix * highlight * vec4(vertexPosition, 1.0);
 
-            if (shininess > 42.0 ) {
-                gl_Position =  perspectiveMatrix * viewMatrix * translationMatrix * highlight * vec4(vertexPosition, 1.0);
-            } 
-            if (shininess < 42.0) {
-                gl_Position =  perspectiveMatrix * viewMatrix * translationMatrix * highlight * vec4(vertexPosition, 1.0);
-            }
-
-            // gl_Position =  translationMatrix * vec4(vertexPosition, 1.0);
+            gl_Position =  perspectiveMatrix * viewMatrix * highlight * translationMatrix * totalRotation * vec4(vertexPosition, 1.0);
         }
     `;
     
@@ -416,6 +465,7 @@ function setupShaders() {
                 scaleattrib = gl.getAttribLocation(shaderProgram, "scaleFactor"); 
                 centerattrib = gl.getAttribLocation(shaderProgram, "center"); 
                 translateattrib = gl.getAttribLocation(shaderProgram, "translation"); 
+                rotateattrib = gl.getAttribLocation(shaderProgram, "rotation"); 
                 gl.enableVertexAttribArray(normalattrib); // input to shader from array
                 gl.enableVertexAttribArray(ambientattrib); // input to shader from array
                 gl.enableVertexAttribArray(diffuseattrib); // input to shader from array
@@ -424,6 +474,7 @@ function setupShaders() {
                 gl.enableVertexAttribArray(scaleattrib); // input to shader from array
                 gl.enableVertexAttribArray(centerattrib); // input to shader from array
                 gl.enableVertexAttribArray(translateattrib); // input to shader from array
+                gl.enableVertexAttribArray(rotateattrib); // input to shader from array
                 
 
                 vertexPositionAttrib = gl.getAttribLocation(shaderProgram, "vertexPosition"); 
@@ -457,6 +508,7 @@ var shininessattrib;
 var scaleattrib;
 var centerattrib;
 var translateattrib
+var rotateattrib
 
 //Buffers
 var normalBuffer;
@@ -467,6 +519,7 @@ var shininessBuffer;
 var scaleBuffer;
 var centerBuffer;
 var translateBuffer;
+var rotationBuffer;
 
 
 var bgColor = 0;
@@ -543,6 +596,9 @@ function update() {
     gl.bindBuffer(gl.ARRAY_BUFFER,translateBuffer); // activate
     gl.vertexAttribPointer(translateattrib,3,gl.FLOAT,false,0,0);
 
+    gl.bindBuffer(gl.ARRAY_BUFFER,rotationBuffer); // activate
+    gl.vertexAttribPointer(rotateattrib,3,gl.FLOAT,false,0,0);
+
     //Activate index buffer.
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuffer);
 
@@ -557,6 +613,7 @@ function main() {
     for (var i = 0; i < inputTriangles.length; i++) {
         whichSetScale[i] = 1.0;
         whichSetTranslate[i] = new vec3.fromValues(0.0, 0.0, 0.0);
+        whichSetRotate[i] = new vec3.fromValues(0.0, 0.0, 0.0);
     }
 
     document.addEventListener('keydown', (event)=> {
@@ -666,6 +723,38 @@ function main() {
                 whichSetTranslate[(currentSelection) % whichSetScale.length][1] = whichSetTranslate[(currentSelection) % whichSetScale.length][1] - .01;
             }
         }
+        if (event.key == "K") {
+            if (whichSetScale[(currentSelection) % whichSetScale.length] == 1.2) {
+                whichSetRotate[(currentSelection) % whichSetScale.length][1] = whichSetRotate[(currentSelection) % whichSetScale.length][1] + degToRad(3);
+            }
+        }
+        if (event.key == ":") {
+            if (whichSetScale[(currentSelection) % whichSetScale.length] == 1.2) {
+                whichSetRotate[(currentSelection) % whichSetScale.length][1] = whichSetRotate[(currentSelection) % whichSetScale.length][1] - degToRad(3);
+            }
+        }
+        if (event.key == "O") {
+            if (whichSetScale[(currentSelection) % whichSetScale.length] == 1.2) {
+                whichSetRotate[(currentSelection) % whichSetScale.length][0] = whichSetRotate[(currentSelection) % whichSetScale.length][0] + degToRad(3);
+            }
+        }
+        if (event.key == "L") {
+            if (whichSetScale[(currentSelection) % whichSetScale.length] == 1.2) {
+                whichSetRotate[(currentSelection) % whichSetScale.length][0] = whichSetRotate[(currentSelection) % whichSetScale.length][0] - degToRad(3);
+            }
+        }
+        if (event.key == "I") {
+            if (whichSetScale[(currentSelection) % whichSetScale.length] == 1.2) {
+                whichSetRotate[(currentSelection) % whichSetScale.length][2] = whichSetRotate[(currentSelection) % whichSetScale.length][2] + degToRad(3);
+            }
+        }
+        if (event.key == "P") {
+            if (whichSetScale[(currentSelection) % whichSetScale.length] == 1.2) {
+                whichSetRotate[(currentSelection) % whichSetScale.length][2] = whichSetRotate[(currentSelection) % whichSetScale.length][2] - degToRad(3);
+            }
+        }
+
+        
         requestAnimationFrame(update);
     })
 
@@ -681,6 +770,7 @@ function main() {
     scaleBuffer = gl.createBuffer();
     centerBuffer = gl.createBuffer();
     translateBuffer = gl.createBuffer();
+    rotationBuffer = gl.createBuffer();
     setupShaders(); // setup the webGL shaders
     update(); // draw the triangles using webGL
   
