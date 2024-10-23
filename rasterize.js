@@ -142,7 +142,7 @@ function loadTriangles() {
                 for (var i = 0; i < 3; i++) {
                     //Get index
                     var vIndex = inputTriangles[whichSet].triangles[whichSetTri][i];
-
+                    
                     var index = vIndex + currentOffset;
                     normalArray[index * 3 + 0] = currentNormal.x; 
                     normalArray[index * 3 + 1] = currentNormal.y; 
@@ -293,10 +293,6 @@ function setupShaders() {
             color[1] += fragSpecular[1] * lightSpecular[1] * pow(max(NdotH, 0.0), fragShininess); 
             color[2] += fragSpecular[2] * lightSpecular[2] * pow(max(NdotH, 0.0), fragShininess);
 
-            // color[0] = 0.1;
-            // color[1] = 0.1;
-            // color[2] = .205;
-
             gl_FragColor = color;
 
         }
@@ -309,7 +305,7 @@ function setupShaders() {
         //Buffer inputs
         attribute vec3 vertexPosition;
         attribute vec3 normal;
-        attribute vec3 ambient;   // Ambient light color
+        attribute vec3 ambient; 
         attribute vec3 diffuse;
         attribute vec3 specular;
         attribute float shininess;
@@ -338,12 +334,12 @@ function setupShaders() {
         float sinA = sin(angle);
         
         return mat4(
-            1.0,    0.0,     0.0,    0.0,
-            0.0,    cosA,   -sinA,   0.0,
-            0.0,    sinA,    cosA,   0.0,
-            0.0,    0.0,     0.0,    1.0
-        );
-    }
+                1.0,    0.0,     0.0,    0.0,
+                0.0,    cosA,   -sinA,   0.0,
+                0.0,    sinA,    cosA,   0.0,
+                0.0,    0.0,     0.0,    1.0
+            );
+        }
 
     mat4 rotateY(float angle) {
         float cosA = cos(angle);
@@ -378,75 +374,77 @@ function setupShaders() {
         );
     }
 
+    //CITATION: Basically the same as the mat4 function(s) https://glmatrix.net/docs/mat4.js.html#line293, or any inverse matrix, but I wanted to use it in my vertex shader. Converted it to GLSL using GPT.
+    //Needed it for the inverse transform for my normals (Since I wanted to calculate them ahead of time and transform afterwards using cool matrix math. Boy was that a mistake)
     mat4 invertMat4(mat4 m) {
-    float det = 
-        m[0][0] * m[1][1] * m[2][2] * m[3][3] +
-        m[0][1] * m[1][2] * m[2][3] * m[3][0] +
-        m[0][2] * m[1][3] * m[2][0] * m[3][1] +
-        m[0][3] * m[1][0] * m[2][1] * m[3][2] -
-        m[0][3] * m[1][2] * m[2][1] * m[3][0] -
-        m[0][2] * m[1][1] * m[2][0] * m[3][3] -
-        m[0][1] * m[1][0] * m[2][3] * m[3][2] -
-        m[0][0] * m[1][3] * m[2][2] * m[3][1];
+        float det = 
+            m[0][0] * m[1][1] * m[2][2] * m[3][3] +
+            m[0][1] * m[1][2] * m[2][3] * m[3][0] +
+            m[0][2] * m[1][3] * m[2][0] * m[3][1] +
+            m[0][3] * m[1][0] * m[2][1] * m[3][2] -
+            m[0][3] * m[1][2] * m[2][1] * m[3][0] -
+            m[0][2] * m[1][1] * m[2][0] * m[3][3] -
+            m[0][1] * m[1][0] * m[2][3] * m[3][2] -
+            m[0][0] * m[1][3] * m[2][2] * m[3][1];
 
-    // Check if determinant is zero (matrix is not invertible)
-    if (det == 0.0) {
-        return mat4(1.0); // Return identity matrix (or handle error as needed)
+        // Check if determinant is zero (matrix is not invertible)
+        if (det == 0.0) {
+            return mat4(1.0); // Return identity matrix (or handle error as needed)
+        }
+
+        mat4 inv;
+
+        inv[0][0] =   m[1][1] * m[2][2] * m[3][3] + m[1][2] * m[2][3] * m[3][1] + m[1][3] * m[2][1] * m[3][2] -
+                    m[1][3] * m[2][2] * m[3][1] - m[1][2] * m[2][1] * m[3][3] - m[1][1] * m[2][3] * m[3][2];
+
+        inv[0][1] = -m[1][0] * m[2][2] * m[3][3] - m[1][2] * m[2][3] * m[3][0] - m[1][3] * m[2][0] * m[3][2] +
+                    m[1][3] * m[2][2] * m[3][0] + m[1][2] * m[2][0] * m[3][3] + m[1][0] * m[2][3] * m[3][2];
+
+        inv[0][2] =   m[1][0] * m[2][1] * m[3][3] + m[1][1] * m[2][3] * m[3][0] + m[1][3] * m[2][0] * m[3][1] -
+                    m[1][3] * m[2][1] * m[3][0] - m[1][1] * m[2][3] * m[3][2] - m[1][0] * m[2][3] * m[3][1];
+
+        inv[0][3] = -m[1][0] * m[2][1] * m[3][2] - m[1][1] * m[2][2] * m[3][0] - m[1][2] * m[2][0] * m[3][1] +
+                    m[1][2] * m[2][1] * m[3][0] + m[1][1] * m[2][0] * m[3][2] + m[1][0] * m[2][2] * m[3][1];
+
+        inv[1][0] = -m[0][1] * m[2][2] * m[3][3] - m[0][2] * m[2][3] * m[3][1] - m[0][3] * m[2][1] * m[3][2] +
+                    m[0][3] * m[2][2] * m[3][1] + m[0][2] * m[2][1] * m[3][3] + m[0][1] * m[2][3] * m[3][2];
+
+        inv[1][1] =   m[0][0] * m[2][2] * m[3][3] + m[0][2] * m[2][3] * m[3][0] + m[0][3] * m[2][0] * m[3][2] -
+                    m[0][3] * m[2][2] * m[3][0] - m[0][2] * m[2][0] * m[3][3] - m[0][0] * m[2][3] * m[3][2];
+
+        inv[1][2] = -m[0][0] * m[2][1] * m[3][3] - m[0][1] * m[2][3] * m[3][0] - m[0][3] * m[2][0] * m[3][1] +
+                    m[0][3] * m[2][1] * m[3][0] + m[0][1] * m[2][0] * m[3][3] + m[0][0] * m[2][3] * m[3][1];
+
+        inv[1][3] =   m[0][0] * m[2][1] * m[3][2] + m[0][1] * m[2][2] * m[3][0] + m[0][2] * m[2][0] * m[3][1] -
+                    m[0][2] * m[2][1] * m[3][0] - m[0][1] * m[2][0] * m[3][2] - m[0][0] * m[2][2] * m[3][1];
+
+        inv[2][0] =   m[0][1] * m[1][2] * m[3][3] + m[0][2] * m[1][3] * m[3][1] + m[0][3] * m[1][1] * m[3][2] -
+                    m[0][3] * m[1][2] * m[3][1] - m[0][2] * m[1][1] * m[3][3] - m[0][1] * m[1][3] * m[3][2];
+
+        inv[2][1] = -m[0][0] * m[1][2] * m[3][3] - m[0][2] * m[1][3] * m[3][0] - m[0][3] * m[1][0] * m[3][2] +
+                    m[0][3] * m[1][2] * m[3][0] + m[0][2] * m[1][0] * m[3][3] + m[0][0] * m[1][3] * m[3][2];
+
+        inv[2][2] =   m[0][0] * m[1][1] * m[3][3] + m[0][1] * m[1][3] * m[3][0] + m[0][3] * m[1][0] * m[3][1] -
+                    m[0][3] * m[1][1] * m[3][0] - m[0][1] * m[1][0] * m[3][3] - m[0][0] * m[1][3] * m[3][1];
+
+        inv[2][3] = -m[0][0] * m[1][1] * m[3][2] - m[0][1] * m[1][2] * m[3][0] - m[0][2] * m[1][0] * m[3][1] +
+                    m[0][2] * m[1][1] * m[3][0] + m[0][1] * m[1][0] * m[3][2] + m[0][0] * m[1][2] * m[3][1];
+
+        inv[3][0] = -m[0][1] * m[1][2] * m[2][3] - m[0][2] * m[1][3] * m[2][1] - m[0][3] * m[1][1] * m[2][2] +
+                    m[0][3] * m[1][2] * m[2][1] + m[0][2] * m[1][1] * m[2][3] + m[0][1] * m[1][3] * m[2][2];
+
+        inv[3][1] =   m[0][0] * m[1][2] * m[2][3] + m[0][2] * m[1][3] * m[2][0] + m[0][3] * m[1][0] * m[2][2] -
+                    m[0][3] * m[1][2] * m[2][0] - m[0][2] * m[1][0] * m[2][3] - m[0][0] * m[1][3] * m[2][2];
+
+        inv[3][2] = -m[0][0] * m[1][1] * m[2][3] - m[0][1] * m[1][3] * m[2][0] - m[0][3] * m[1][0] * m[2][1] +
+                    m[0][3] * m[1][1] * m[2][0] + m[0][1] * m[1][0] * m[2][3] + m[0][0] * m[1][3] * m[2][1];
+
+        inv[3][3] =   m[0][0] * m[1][1] * m[2][2] + m[0][1] * m[1][2] * m[2][0] + m[0][2] * m[1][0] * m[2][1] -
+                    m[0][2] * m[1][1] * m[2][0] - m[0][1] * m[1][0] * m[2][2] - m[0][0] * m[1][2] * m[2][1];
+
+        // Scale by the determinant
+        return inv / det;
     }
-
-    mat4 inv;
-
-    inv[0][0] =   m[1][1] * m[2][2] * m[3][3] + m[1][2] * m[2][3] * m[3][1] + m[1][3] * m[2][1] * m[3][2] -
-                  m[1][3] * m[2][2] * m[3][1] - m[1][2] * m[2][1] * m[3][3] - m[1][1] * m[2][3] * m[3][2];
-
-    inv[0][1] = -m[1][0] * m[2][2] * m[3][3] - m[1][2] * m[2][3] * m[3][0] - m[1][3] * m[2][0] * m[3][2] +
-                  m[1][3] * m[2][2] * m[3][0] + m[1][2] * m[2][0] * m[3][3] + m[1][0] * m[2][3] * m[3][2];
-
-    inv[0][2] =   m[1][0] * m[2][1] * m[3][3] + m[1][1] * m[2][3] * m[3][0] + m[1][3] * m[2][0] * m[3][1] -
-                  m[1][3] * m[2][1] * m[3][0] - m[1][1] * m[2][3] * m[3][2] - m[1][0] * m[2][3] * m[3][1];
-
-    inv[0][3] = -m[1][0] * m[2][1] * m[3][2] - m[1][1] * m[2][2] * m[3][0] - m[1][2] * m[2][0] * m[3][1] +
-                  m[1][2] * m[2][1] * m[3][0] + m[1][1] * m[2][0] * m[3][2] + m[1][0] * m[2][2] * m[3][1];
-
-    inv[1][0] = -m[0][1] * m[2][2] * m[3][3] - m[0][2] * m[2][3] * m[3][1] - m[0][3] * m[2][1] * m[3][2] +
-                  m[0][3] * m[2][2] * m[3][1] + m[0][2] * m[2][1] * m[3][3] + m[0][1] * m[2][3] * m[3][2];
-
-    inv[1][1] =   m[0][0] * m[2][2] * m[3][3] + m[0][2] * m[2][3] * m[3][0] + m[0][3] * m[2][0] * m[3][2] -
-                  m[0][3] * m[2][2] * m[3][0] - m[0][2] * m[2][0] * m[3][3] - m[0][0] * m[2][3] * m[3][2];
-
-    inv[1][2] = -m[0][0] * m[2][1] * m[3][3] - m[0][1] * m[2][3] * m[3][0] - m[0][3] * m[2][0] * m[3][1] +
-                  m[0][3] * m[2][1] * m[3][0] + m[0][1] * m[2][0] * m[3][3] + m[0][0] * m[2][3] * m[3][1];
-
-    inv[1][3] =   m[0][0] * m[2][1] * m[3][2] + m[0][1] * m[2][2] * m[3][0] + m[0][2] * m[2][0] * m[3][1] -
-                  m[0][2] * m[2][1] * m[3][0] - m[0][1] * m[2][0] * m[3][2] - m[0][0] * m[2][2] * m[3][1];
-
-    inv[2][0] =   m[0][1] * m[1][2] * m[3][3] + m[0][2] * m[1][3] * m[3][1] + m[0][3] * m[1][1] * m[3][2] -
-                  m[0][3] * m[1][2] * m[3][1] - m[0][2] * m[1][1] * m[3][3] - m[0][1] * m[1][3] * m[3][2];
-
-    inv[2][1] = -m[0][0] * m[1][2] * m[3][3] - m[0][2] * m[1][3] * m[3][0] - m[0][3] * m[1][0] * m[3][2] +
-                  m[0][3] * m[1][2] * m[3][0] + m[0][2] * m[1][0] * m[3][3] + m[0][0] * m[1][3] * m[3][2];
-
-    inv[2][2] =   m[0][0] * m[1][1] * m[3][3] + m[0][1] * m[1][3] * m[3][0] + m[0][3] * m[1][0] * m[3][1] -
-                  m[0][3] * m[1][1] * m[3][0] - m[0][1] * m[1][0] * m[3][3] - m[0][0] * m[1][3] * m[3][1];
-
-    inv[2][3] = -m[0][0] * m[1][1] * m[3][2] - m[0][1] * m[1][2] * m[3][0] - m[0][2] * m[1][0] * m[3][1] +
-                  m[0][2] * m[1][1] * m[3][0] + m[0][1] * m[1][0] * m[3][2] + m[0][0] * m[1][2] * m[3][1];
-
-    inv[3][0] = -m[0][1] * m[1][2] * m[2][3] - m[0][2] * m[1][3] * m[2][1] - m[0][3] * m[1][1] * m[2][2] +
-                  m[0][3] * m[1][2] * m[2][1] + m[0][2] * m[1][1] * m[2][3] + m[0][1] * m[1][3] * m[2][2];
-
-    inv[3][1] =   m[0][0] * m[1][2] * m[2][3] + m[0][2] * m[1][3] * m[2][0] + m[0][3] * m[1][0] * m[2][2] -
-                  m[0][3] * m[1][2] * m[2][0] - m[0][2] * m[1][0] * m[2][3] - m[0][0] * m[1][3] * m[2][2];
-
-    inv[3][2] = -m[0][0] * m[1][1] * m[2][3] - m[0][1] * m[1][3] * m[2][0] - m[0][3] * m[1][0] * m[2][1] +
-                  m[0][3] * m[1][1] * m[2][0] + m[0][1] * m[1][0] * m[2][3] + m[0][0] * m[1][3] * m[2][1];
-
-    inv[3][3] =   m[0][0] * m[1][1] * m[2][2] + m[0][1] * m[1][2] * m[2][0] + m[0][2] * m[1][0] * m[2][1] -
-                  m[0][2] * m[1][1] * m[2][0] - m[0][1] * m[1][0] * m[2][2] - m[0][0] * m[1][2] * m[2][1];
-
-    // Scale by the determinant
-    return inv / det;
-}
 
 
         //Outputs
@@ -684,8 +682,11 @@ function update() {
 }
 
 
-/* MAIN -- HERE is where execution begins after window load */
 
+
+/** MAIN
+ * ALL setup code. Sets up my keybinds, creates my buffers, sets up openGL, and loads and renders my triangles for the first animation.
+ */
 function main() {
 
     for (var i = 0; i < inputTriangles.length; i++) {
@@ -850,8 +851,16 @@ function main() {
     translateBuffer = gl.createBuffer();
     rotationBuffer = gl.createBuffer();
     setupShaders(); // setup the webGL shaders
-    update(); // draw the triangles using webGL
+    update(); //First update loop.
   
 } // end main
 
-//Remember gl.enable(gl.DEPTH_TEST) from orthographic 3d.
+
+//Notes:
+//Buffers aren't buffering. Fixed: don't create the buffer more than once.
+//Perspective is off, why? Fixed: aspect ratio was broken.
+//Colors dont change when moving closer to the light? Fixed: Normal calculation was wrong because using vec4's instead of vec3's. Converted to "real" vec3's in shader code.
+//Lighting is in the wrong place? Fixed: Don't modify the lighting with perspective and/or view matrices. It's actually correct but kinda far away. Video using different params?
+//Inverse transpose for normals later? Fixed: Added inverse and transpose, also added view and that seemed to help for some reason? Fixed: Lighting happens in view space, apparently.
+//rotation, translate, scale, view, perspective = position transform.
+//inverse transpose rotation, view = normal transform. Scale and translation doesn't affect normals. You'd think perspective would though, BUT WE DO IT IN VIEW SPACE.
