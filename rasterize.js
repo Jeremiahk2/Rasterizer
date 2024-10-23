@@ -9,15 +9,14 @@ const INPUT_LIGHTS_URL = "https://ncsucgclass.github.io/prog3/lights.json";
 //const INPUT_SPHERES_URL = "https://ncsucgclass.github.io/prog3/spheres.json"; // spheres file loc
 
 let eye=vec3.fromValues(.5, .5, -.5);
-let center=vec3.fromValues(.5, .5, .5);
+let center=vec3.fromValues(.5, .5, 0.0);
 let up=vec3.fromValues(0,1,0);
 var cameraAngleRadians = degToRad(0);
 
-var inputTriangles = getJSONFile(INPUT_TRIANGLES_URL,"triangles");
+var inputTriangles =  getJSONFile(INPUT_TRIANGLES_URL, "triangles");
 var lights = [
     {"x": -.5, "y": 1.5, "z": -.5, "ambient": [1,1,1], "diffuse": [1,1,1], "specular": [1,1,1]}
     ]
-    
 
 /* webgl globals */
 var gl = null; // the all powerful gl object. It's all here folks!
@@ -246,15 +245,22 @@ function setupShaders() {
         uniform vec3 lightSpecular;
 
         void main(void) {
-            vec3 realNormal = vec3(fragNormal[0], fragNormal[1], fragNormal[2]);
-            vec3 realLightPos = vec3(lightPos[0], lightPos[1], lightPos[2]);
-            vec3 realFragPosition = vec3(fragPosition[0], fragPosition[1], fragPosition[2]);
-            vec3 realView = vec3(viewPosition[0], viewPosition[1], viewPosition[2]);
+            vec3 realNormal = vec3(fragNormal[0], fragNormal[1], fragNormal[2]); 
+            vec3 realLightPos = vec3(lightPos[0], lightPos[1], lightPos[2]); 
+            vec3 realFragPosition = vec3(fragPosition[0], fragPosition[1], fragPosition[2]); 
+            vec3 realView = vec3(viewPosition[0], viewPosition[1], viewPosition[2]); 
 
-            vec3 N = normalize(realNormal);
+            vec3 N = normalize(realNormal); 
             vec3 lVect = realLightPos - realFragPosition;
-            vec3 V = realView - realFragPosition;
+            vec3 V = realView - realFragPosition; 
 
+            float NdotE = dot(N, normalize(V));
+
+            if (NdotE < 0.0) {
+                N = N * -1.0;
+            }
+
+            //normal of lVect is -.511, .483, -.711
             float NdotL = dot(normalize(N), normalize(lVect));
             float NdotH = dot(normalize(N), normalize(normalize(lVect) + normalize(V)));
 
@@ -264,17 +270,17 @@ function setupShaders() {
             color[1] += fragAmbient[1] * lightAmbient[1];
             color[2] += fragAmbient[2] * lightAmbient[2];
 
-            color[0] += fragDiffuse[0] * lightDiffuse[0] * max(NdotL, 0.0);
-            color[1] += fragDiffuse[1] * lightDiffuse[1] * max(NdotL, 0.0);
+            color[0] += fragDiffuse[0] * lightDiffuse[0] * max(NdotL, 0.0); 
+            color[1] += fragDiffuse[1] * lightDiffuse[1] * max(NdotL, 0.0); 
             color[2] += fragDiffuse[2] * lightDiffuse[2] * max(NdotL, 0.0);
 
-            color[0] += fragSpecular[0] * lightSpecular[0] * pow(max(NdotH, 0.0), fragShininess);
-            color[1] += fragSpecular[1] * lightSpecular[1] * pow(max(NdotH, 0.0), fragShininess);
+            color[0] += fragSpecular[0] * lightSpecular[0] * pow(max(NdotH, 0.0), fragShininess); 
+            color[1] += fragSpecular[1] * lightSpecular[1] * pow(max(NdotH, 0.0), fragShininess); 
             color[2] += fragSpecular[2] * lightSpecular[2] * pow(max(NdotH, 0.0), fragShininess);
 
-            // color[0] = 0.0;
-            // color[1] = 0.0;
-            // color[2] = length((lVect)) - 1.7;
+            // color[0] = 0.1;
+            // color[1] = 0.1;
+            // color[2] = .205;
 
             gl_FragColor = color;
 
@@ -341,17 +347,25 @@ function setupShaders() {
             mat4 translationMatrix = mat4(1.0);
             translationMatrix[3] = vec4(translation, 1.0);
 
-            fragNormal = modelViewMatrix * vec4(normal, 1.0); // Transform normal
+            fragNormal = vec4(normal, 1.0); // Transform normal  
             fragPosition = translationMatrix * vec4(vertexPosition, 1.0);
-            lightPos =  vec4(lightPosition, 1.0);
+            lightPos =   vec4(lightPosition, 1.0);
 
             fragAmbient = ambient; // Pass ambient color
             fragDiffuse = diffuse; // Pass diffuse color
             fragSpecular = specular; // Pass specular color
             fragShininess = shininess;
+            
+            vec4 test = perspectiveMatrix * viewMatrix * translationMatrix * highlight * vec4(vertexPosition, 1.0);
 
-            gl_Position =  perspectiveMatrix * viewMatrix * translationMatrix * highlight * vec4(vertexPosition, 1.0);
+            if (shininess > 42.0 ) {
+                gl_Position =  perspectiveMatrix * viewMatrix * translationMatrix * highlight * vec4(vertexPosition, 1.0);
+            } 
+            if (shininess < 42.0) {
+                gl_Position =  perspectiveMatrix * viewMatrix * translationMatrix * highlight * vec4(vertexPosition, 1.0);
+            }
 
+            // gl_Position =  translationMatrix * vec4(vertexPosition, 1.0);
         }
     `;
     
