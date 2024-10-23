@@ -270,13 +270,12 @@ function setupShaders() {
             vec3 lVect = realLightPos - realFragPosition;
             vec3 V = realView - realFragPosition; 
 
-            float NdotE = dot(N, normalize(V));
+            float NdotE = dot(N, normalize(realView) - normalize(realFragPosition));
 
-            if (NdotE < 0.0) {
+            if (NdotE <= 0.0) {
                 N = N * -1.0;
             }
 
-            //normal of lVect is -.511, .483, -.711
             float NdotL = dot(normalize(N), normalize(lVect));
             float NdotH = dot(normalize(N), normalize(normalize(lVect) + normalize(V)));
 
@@ -484,7 +483,7 @@ function setupShaders() {
             //Rotating
             mat4 totalRotation = translateBack * rotateX(rotation[0]) * rotateY(rotation[1]) * rotateZ(rotation[2]) * translateToOrigin;
 
-            fragNormal = perspectiveMatrix * viewMatrix * invertMat4(transposeMat4(totalRotation))  *  vec4(normal, 1.0); // Transform normal  
+            fragNormal = perspectiveMatrix * invertMat4(transposeMat4(totalRotation)) * vec4(normal, 1.0); // Transform normal  
             fragPosition = translationMatrix * highlight * totalRotation * vec4(vertexPosition, 1.0);
             lightPos =   vec4(lightPosition, 1.0);
 
